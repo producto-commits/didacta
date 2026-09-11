@@ -66,6 +66,18 @@ export interface StorageAdapter {
   download(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
   getSignedUrl(key: string, expiresInSeconds?: number): Promise<string>;
+  /**
+   * Presigned PUT para subida DIRECTA del navegador al storage, sin que los
+   * bytes pasen por Node (imprescindible para vídeos pesados: sin RAM ni límite
+   * de payload de la API). Solo lo implementa el driver S3; el disco local lo
+   * deja `undefined` y el caller cae a otra vía o rechaza la subida.
+   *
+   * `contentType` se firma DENTRO de la URL: el cliente DEBE mandar exactamente
+   * esa cabecera `Content-Type` en el PUT o la firma no valida. Ese mismo
+   * content-type queda persistido en el objeto, así el GET pre-firmado lo sirve
+   * con el MIME correcto (streaming de vídeo con Range nativo).
+   */
+  getUploadUrl?(key: string, contentType: string, expiresInSeconds?: number): Promise<string>;
 }
 
 export interface UploadImageOptions {

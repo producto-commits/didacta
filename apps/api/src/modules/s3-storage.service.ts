@@ -105,6 +105,20 @@ export class S3StorageService implements StorageAdapter {
     });
   }
 
+  /**
+   * Presigned PUT: el navegador sube el fichero DIRECTO a S3/MinIO. El
+   * `ContentType` firmado obliga al cliente a mandar esa misma cabecera (si no,
+   * la firma v4 no valida) y queda persistido en el objeto para que el GET
+   * pre-firmado lo sirva con el MIME correcto y soporte Range (seek de vídeo).
+   */
+  async getUploadUrl(key: string, contentType: string, expiresInSeconds?: number): Promise<string> {
+    const safe = this.sanitize(key);
+    const cmd = new PutObjectCommand({ Bucket: this.bucket, Key: safe, ContentType: contentType });
+    return getSignedUrl(this.client, cmd, {
+      expiresIn: expiresInSeconds ?? this.defaultTtl,
+    });
+  }
+
   /** Health check: HeadBucket es 200 si el bucket existe y las creds son válidas. */
   async ping(): Promise<boolean> {
     try {

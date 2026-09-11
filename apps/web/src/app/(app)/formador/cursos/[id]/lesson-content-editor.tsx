@@ -27,6 +27,7 @@ import { labelOr } from '@/lib/i18n/labels';
 import { assessmentsApi } from '@/modules/assessments';
 import { coursesApi, type CourseLesson, type LessonType } from '@/lib/courses';
 import { scormApi, type ScormPackageMetadata } from '@/lib/scorm';
+import { uploadLessonVideo, VideoUploadError } from '@/lib/video-upload';
 import { normalizeTranscript } from '@/lib/transcript';
 
 /** ISO → valor de `<input type="datetime-local">` en hora LOCAL (YYYY-MM-DDTHH:mm). */
@@ -67,6 +68,9 @@ export function LessonContentEditor({
   const [videoUrl, setVideoUrl] = useState(
     typeof content['videoUrl'] === 'string' ? content['videoUrl'] : '',
   );
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploadPct, setVideoUploadPct] = useState(0);
+  const [videoUploadErr, setVideoUploadErr] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState(
     typeof content['pdfUrl'] === 'string' ? content['pdfUrl'] : '',
   );
@@ -183,6 +187,50 @@ export function LessonContentEditor({
           <p className="text-xs text-text-subtle">
             {t.rich('videoUrlHelp', { code: (chunks) => <code>{chunks}</code> })}
           </p>
+
+          <div className="pt-1">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-brand hover:underline">
+              <Icon name="play" className="h-3.5 w-3.5" />
+              {videoUploading
+                ? `Subiendo vídeo… ${videoUploadPct}%`
+                : 'Subir vídeo desde mi computador (MP4 o WebM)'}
+              <input
+                type="file"
+                accept="video/mp4,video/webm,.mp4,.webm"
+                className="sr-only"
+                disabled={videoUploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setVideoUploadErr(null);
+                  setVideoUploadPct(0);
+                  setVideoUploading(true);
+                  try {
+                    const url = await uploadLessonVideo(file, setVideoUploadPct);
+                    setVideoUrl(url);
+                  } catch (err) {
+                    setVideoUploadErr(
+                      err instanceof VideoUploadError
+                        ? err.message
+                        : 'No se pudo subir el vídeo. Inténtalo de nuevo.',
+                    );
+                  } finally {
+                    setVideoUploading(false);
+                  }
+                }}
+              />
+            </label>
+            {videoUploading && (
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-black/10">
+                <div
+                  className="h-full bg-brand transition-all"
+                  style={{ width: `${videoUploadPct}%` }}
+                />
+              </div>
+            )}
+            {videoUploadErr && <p className="mt-1 text-xs text-red-600">{videoUploadErr}</p>}
+          </div>
 
           <div className="space-y-1.5 pt-2">
             <Label htmlFor={`resources-${lesson.id}`}>{t('resourcesLabel')}</Label>

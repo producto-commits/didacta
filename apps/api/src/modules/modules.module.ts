@@ -38,6 +38,7 @@ import { OutboxRecoveryWorker } from './outbox-recovery.worker';
 import { ScormLearningBridge } from './scorm-learning.bridge';
 import { StorageController } from './storage.controller';
 import { StorageFileController } from './storage-file.controller';
+import { VideoUploadController } from './video-upload.controller';
 import { TenantModulesService } from './tenant-modules.service';
 import { TenantModulesErrorFilter } from './tenant-modules-error.filter';
 import { EventsController } from './events.controller';
@@ -91,6 +92,7 @@ import { OutboxMetrics, outboxMetricsProviders } from './outbox.metrics';
     AdminSystemController,
     StorageController,
     StorageFileController,
+    VideoUploadController,
     AiProvidersController,
     // GET /me/modules — sidebar gating UI (módulos activos + capabilities EE).
     MeModulesController,
