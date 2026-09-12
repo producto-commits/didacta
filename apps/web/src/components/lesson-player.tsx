@@ -284,6 +284,7 @@ function LessonContent({
           resources={resources}
           onWatch={onWatch}
           watchEnabled={watchEnabled}
+          poster={typeof content['videoPoster'] === 'string' ? content['videoPoster'] : undefined}
         />
         {complementHtml ? <LessonRichHtml html={complementHtml} /> : null}
       </div>

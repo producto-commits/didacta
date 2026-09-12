@@ -41,6 +41,11 @@ interface Props {
   onWatch?: (report: WatchReport) => void;
   /** Habilita/pausa la medición (p.ej. se apaga al completar la lección). */
   watchEnabled?: boolean;
+  /**
+   * Imagen de portada (poster) para el `<video>` directo (mp4/webm): se muestra
+   * antes de dar play, en vez del rectángulo negro. Puede ser un data URI.
+   */
+  poster?: string;
 }
 
 /**
@@ -58,6 +63,7 @@ export function VideoEmbed({
   hideResources,
   onWatch,
   watchEnabled = true,
+  poster,
 }: Props) {
   const t = useTranslations('playersContenido');
   // `seek` cambia al pulsar un capítulo; `nonce` fuerza el re-mount del iframe.
@@ -143,6 +149,7 @@ export function VideoEmbed({
         ref={videoRef}
         controls
         preload="metadata"
+        poster={poster || undefined}
         className="w-full rounded-lg border border-border bg-black"
         // eslint-disable-next-line jsx-a11y/media-has-caption
         src={url}

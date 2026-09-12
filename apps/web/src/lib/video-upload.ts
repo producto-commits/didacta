@@ -106,3 +106,76 @@ export async function uploadLessonVideo(
   await putWithProgress(presign.uploadUrl, file, contentType, onProgress);
   return presign.playbackUrl;
 }
+
+/**
+ * Captura un fotograma del vídeo (en el navegador) para usarlo como miniatura /
+ * poster de la lección, y lo devuelve como data URI JPEG comprimido (~640px de
+ * ancho). Así el reproductor muestra una portada en vez de un rectángulo negro
+ * antes de dar play. No sube nada: el poster va inline en el contenido de la
+ * lección (unos KB). Devuelve null si el navegador no puede decodificar el
+ * fotograma (formato raro, políticas, etc.) — en ese caso simplemente no hay
+ * poster y no se rompe nada.
+ */
+export function captureVideoPoster(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (v: string | null) => {
+      if (settled) return;
+      settled = true;
+      try {
+        video.removeAttribute('src');
+        URL.revokeObjectURL(objectUrl);
+      } catch {
+        /* noop */
+      }
+      resolve(v);
+    };
+
+    const objectUrl = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.muted = true;
+    video.preload = 'metadata';
+    video.crossOrigin = 'anonymous';
+    video.src = objectUrl;
+
+    // Si algo se cuelga, no bloqueamos la subida indefinidamente.
+    const timeout = setTimeout(() => finish(null), 8000);
+
+    video.onloadedmetadata = () => {
+      // Un punto temprano pero no el frame 0 (suele ser negro): 1s o el 10%.
+      const target = Math.min(1, (video.duration || 2) * 0.1);
+      const onSeeked = () => {
+        try {
+          const maxW = 640;
+          const scale = video.videoWidth > maxW ? maxW / video.videoWidth : 1;
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+          canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            clearTimeout(timeout);
+            return finish(null);
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUri = canvas.toDataURL('image/jpeg', 0.7);
+          clearTimeout(timeout);
+          finish(dataUri.startsWith('data:image/jpeg') ? dataUri : null);
+        } catch {
+          clearTimeout(timeout);
+          finish(null);
+        }
+      };
+      video.onseeked = onSeeked;
+      try {
+        video.currentTime = target;
+      } catch {
+        clearTimeout(timeout);
+        finish(null);
+      }
+    };
+    video.onerror = () => {
+      clearTimeout(timeout);
+      finish(null);
+    };
+  });
+}

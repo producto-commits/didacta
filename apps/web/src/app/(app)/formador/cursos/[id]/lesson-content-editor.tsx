@@ -27,7 +27,7 @@ import { labelOr } from '@/lib/i18n/labels';
 import { assessmentsApi } from '@/modules/assessments';
 import { coursesApi, type CourseLesson, type LessonType } from '@/lib/courses';
 import { scormApi, type ScormPackageMetadata } from '@/lib/scorm';
-import { uploadLessonVideo, VideoUploadError } from '@/lib/video-upload';
+import { uploadLessonVideo, captureVideoPoster, VideoUploadError } from '@/lib/video-upload';
 import { normalizeTranscript } from '@/lib/transcript';
 
 /** ISO → valor de `<input type="datetime-local">` en hora LOCAL (YYYY-MM-DDTHH:mm). */
@@ -71,6 +71,9 @@ export function LessonContentEditor({
   const [videoUploading, setVideoUploading] = useState(false);
   const [videoUploadPct, setVideoUploadPct] = useState(0);
   const [videoUploadErr, setVideoUploadErr] = useState<string | null>(null);
+  const [videoPoster, setVideoPoster] = useState(
+    typeof content['videoPoster'] === 'string' ? content['videoPoster'] : '',
+  );
   const [pdfUrl, setPdfUrl] = useState(
     typeof content['pdfUrl'] === 'string' ? content['pdfUrl'] : '',
   );
@@ -100,7 +103,7 @@ export function LessonContentEditor({
         // para poder borrarlo desde el editor.
         // `transcript`: lo que el tutor IA usa para responder sobre esta clase.
         // No se muestra al alumno; al guardar, la lección se reindexa sola.
-        return { videoUrl, resources, html, transcript };
+        return { videoUrl, videoPoster, resources, html, transcript };
       case 'PDF':
         return { pdfUrl };
       case 'HTML':
@@ -207,8 +210,14 @@ export function LessonContentEditor({
                   setVideoUploadPct(0);
                   setVideoUploading(true);
                   try {
-                    const url = await uploadLessonVideo(file, setVideoUploadPct);
+                    // Captura la miniatura del propio mp4 (en paralelo a la subida)
+                    // para que el reproductor muestre una portada antes del play.
+                    const [url, poster] = await Promise.all([
+                      uploadLessonVideo(file, setVideoUploadPct),
+                      captureVideoPoster(file),
+                    ]);
                     setVideoUrl(url);
+                    if (poster) setVideoPoster(poster);
                   } catch (err) {
                     setVideoUploadErr(
                       err instanceof VideoUploadError
