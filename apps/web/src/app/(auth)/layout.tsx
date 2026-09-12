@@ -46,8 +46,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           className="auth-pane relative flex flex-1 flex-col items-center justify-center gap-7 px-6 py-12 sm:px-10 lg:w-1/2 lg:px-14 lg:py-14"
           style={{
             backgroundColor: '#ff9d38',
-            backgroundImage:
-              'radial-gradient(130% 120% at 50% -10%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 45%), linear-gradient(160deg, #ffb15c 0%, #ff9d38 55%, #f5872a 100%)',
+            backgroundImage: "url('/brand/fondo-dropi.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
           }}
         >
           {/* Logo blanco Dropi sobre el fondo naranja. */}

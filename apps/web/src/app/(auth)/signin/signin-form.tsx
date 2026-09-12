@@ -296,20 +296,6 @@ export function SignInForm() {
           {pending ? t('signin.submitPending') : t('signin.submit')}
         </Button>
       </form>
-
-      {/* Enlace a la membresía SOLO si el tenant tiene /unete activa: si no,
-          sería un enlace a una página que responde "no disponible". */}
-      {tenant?.membershipPageActive ? (
-        <>
-          <div className="h-px w-full bg-border-soft" />
-          <p className="text-center text-[0.9375rem] text-text-muted">
-            {t('signin.noAccountPrompt')}{' '}
-            <Link href="/unete" className="font-semibold text-brand-600 hover:underline">
-              {t('signin.membershipLink')}
-            </Link>
-          </p>
-        </>
-      ) : null}
     </div>
   );
 }
