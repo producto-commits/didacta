@@ -51,9 +51,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             backgroundPosition: 'center',
           }}
         >
-          {/* Logo blanco Dropi sobre el fondo naranja. */}
+          {/* Logo blanco Dropi Academy sobre el fondo naranja. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/dropi-white.svg" alt="Dropi" className="h-9 w-auto" />
+          <img src="/brand/dropi-academy-white.png" alt="Dropi Academy" className="h-24 w-auto" />
 
           {/* Tarjeta blanca con el formulario. */}
           <div className="w-full max-w-[26rem] rounded-2xl bg-white p-8 shadow-2xl sm:p-10">
