@@ -379,6 +379,15 @@ function Shell({
   const pendingCounts = useAdminPendingCounts(isAdminArea);
   const groups = isAdminArea ? applyAdminBadges(filteredGroups, pendingCounts) : roleFilteredGroups;
 
+  // Modo enfoque en la lección (solo estudiante): dentro del reproductor de una
+  // lección concreta (/cursos/<slug>) el sidebar se pliega al rail de iconos
+  // para que el contenido sea el protagonista. No persiste la preferencia; el
+  // alumno puede reabrirlo con el botón y, al salir de la lección, el rail
+  // vuelve a su estado normal. No aplica a formador/admin.
+  const isStudent = !isAdminOrFormador;
+  const inLessonView = (pathname ?? '').startsWith('/cursos/') && pathname !== '/cursos';
+  const focusSidebar = isStudent && inLessonView;
+
   // `<title>` del documento: "Sección actual | Nombre del Tenant | Didacta".
   // Antes todas las páginas mostraban solo "Didacta" (default del root layout):
   // este shell es client component, así que en vez de metadata sincronizamos
@@ -431,6 +440,7 @@ function Shell({
             onLogout={onLogout}
             onOpenSearch={() => setCmdOpen(true)}
             backLink={isAdminArea ? ADMIN_BACK_LINK : undefined}
+            autoCollapse={focusSidebar}
           />
 
           {/* Drawer de navegación — solo móvil (<lg). Reutiliza el mismo sidebar. */}

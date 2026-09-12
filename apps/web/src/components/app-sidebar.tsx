@@ -60,6 +60,13 @@ interface Props {
    * grupo arrancara con algo que no es una sección.
    */
   backLink?: { href: string; label: string };
+  /**
+   * Modo enfoque: pliega el rail automáticamente (p.ej. cuando el alumno entra a
+   * ver una lección, para que el contenido sea el protagonista). NO toca la
+   * preferencia global del usuario; puede reabrirlo con el botón durante esa
+   * lección y, al salir, el rail vuelve a su preferencia guardada.
+   */
+  autoCollapse?: boolean;
 }
 
 /**
@@ -89,7 +96,24 @@ export function AppSidebar(props: Props) {
     setCollapsed(localStorage.getItem(RAIL_PREF_KEY) === '1');
   }, []);
 
+  // Modo enfoque (autoCollapse): pliega el rail en la lección sin persistir. El
+  // override deja reabrirlo durante esa lección; se resetea al entrar/salir del
+  // modo enfoque (cuando cambia `autoCollapse`).
+  const autoCollapse = props.autoCollapse ?? false;
+  const [focusOverride, setFocusOverride] = useState<boolean | null>(null);
+  useEffect(() => {
+    setFocusOverride(null);
+  }, [autoCollapse]);
+
+  const effectiveCollapsed = focusOverride ?? (autoCollapse ? true : collapsed);
+
   function toggleCollapsed() {
+    if (autoCollapse) {
+      // En modo enfoque no tocamos la preferencia global: solo abrimos/cerramos
+      // para esta lección.
+      setFocusOverride(!effectiveCollapsed);
+      return;
+    }
     setCollapsed((v) => {
       localStorage.setItem(RAIL_PREF_KEY, v ? '0' : '1');
       return !v;
@@ -99,14 +123,14 @@ export function AppSidebar(props: Props) {
   return (
     <aside
       className={`sticky top-0 hidden h-dvh shrink-0 flex-col self-start overflow-hidden text-slate-700 transition-[width] duration-300 ease-out lg:flex ${
-        collapsed ? 'w-16' : 'w-65'
+        effectiveCollapsed ? 'w-16' : 'w-65'
       }`}
       style={SIDEBAR_BG_STYLE}
     >
       <SidebarContent
         {...props}
         showVersionBanner
-        collapsed={collapsed}
+        collapsed={effectiveCollapsed}
         onToggleCollapsed={toggleCollapsed}
       />
     </aside>
