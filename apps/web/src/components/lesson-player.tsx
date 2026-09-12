@@ -210,8 +210,8 @@ export function LessonPlayer({
 
   return (
     <article className="overflow-hidden rounded-card border border-border bg-surface shadow-sm">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border bg-surface-2 px-6 py-4">
-        <div className="space-y-1.5">
+      <header className="flex items-start justify-between gap-3 border-b border-border bg-surface-2 px-6 py-4">
+        <div className="min-w-0 space-y-1.5">
           <Badge variant="outline" className="gap-1.5">
             <span aria-hidden="true">{typeIcon}</span>
             {typeLabel}
@@ -225,7 +225,7 @@ export function LessonPlayer({
             </p>
           ) : null}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           {/* Barra de progreso del vídeo self-hosted: % efectivamente visto,
               en vez de la indicación binaria completado/no. */}
           {isSelfHostedVideo && !completed ? (

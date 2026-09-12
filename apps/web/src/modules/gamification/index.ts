@@ -23,7 +23,9 @@ export const gamificationExtension: ModuleWebExtension = {
       icon: 'trophy',
     },
     {
-      group: 'Personas',
+      // Retos vive en 'Aprendizaje' (no 'Personas'): es una actividad del alumno,
+      // no gestión de personas. Clasificación sí se queda en 'Personas'.
+      group: 'Aprendizaje',
       href: '/retos',
       label: 'Retos',
       icon: 'target',

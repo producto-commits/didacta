@@ -129,6 +129,15 @@ export const meApi = {
     );
   },
 
+  /**
+   * Sidebar gating por ROL: hrefs del menú que el admin ocultó para los roles
+   * de quien llama (ver `AdminMenuVisibility`). El layout los filtra del menú
+   * principal. Devuelve `[]` para admins y cuando no hay config.
+   */
+  async getNavHidden(bearer: string): Promise<{ hidden: string[] }> {
+    return apiFetch<{ hidden: string[] }>('/api/v1/me/nav-hidden', { method: 'GET' }, bearer);
+  },
+
   // ── Onboarding ─────────────────────────────────────────────────────────────
   async getOnboardingStatus(bearer: string): Promise<OnboardingStatus> {
     return apiFetch<OnboardingStatus>('/api/v1/me/onboarding/status', { method: 'GET' }, bearer);

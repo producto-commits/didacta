@@ -20,7 +20,12 @@
 
 import { describe, it, expect } from 'vitest';
 import type { SidebarGroup } from '@/components/app-sidebar';
-import { buildGroups, buildAdminGroups } from '@/lib/sidebar-nav';
+import {
+  buildGroups,
+  buildAdminGroups,
+  filterGroupsByHiddenHrefs,
+  MENU_VISIBILITY_CATALOG,
+} from '@/lib/sidebar-nav';
 import { moduleExtensions } from '@/modules';
 
 /** Grupo de espacios: lo inyecta el Shell desde la API; para el test basta vacío. */
@@ -117,5 +122,67 @@ describe('integridad del árbol de navegación', () => {
       .filter((g) => g.items.length > 6)
       .map((g) => `${g.label} (${g.items.length})`);
     expect(tooBig, `Grupos demasiado grandes: ${tooBig.join(', ')}`).toEqual([]);
+  });
+});
+
+describe('filterGroupsByHiddenHrefs (menú por rol)', () => {
+  const GROUPS: SidebarGroup[] = [
+    {
+      label: 'Aprendizaje',
+      icon: 'book',
+      items: [
+        { href: '/cursos', label: 'Cursos', icon: 'book' },
+        { href: '/retos', label: 'Retos', icon: 'target' },
+      ],
+    },
+    {
+      label: 'Personas',
+      icon: 'users',
+      items: [{ href: '/miembros', label: 'Miembros', icon: 'users' }],
+    },
+  ];
+
+  it('null o vacío no recorta nada (primer render / sin config)', () => {
+    expect(filterGroupsByHiddenHrefs(GROUPS, null)).toBe(GROUPS);
+    expect(filterGroupsByHiddenHrefs(GROUPS, new Set())).toBe(GROUPS);
+  });
+
+  it('quita el item oculto y elimina el grupo que queda vacío', () => {
+    const out = filterGroupsByHiddenHrefs(GROUPS, new Set(['/miembros']));
+    expect(out.map((g) => g.label)).toEqual(['Aprendizaje']); // 'Personas' desaparece
+    expect(out[0]?.items.map((i) => i.href)).toEqual(['/cursos', '/retos']);
+  });
+
+  it('no muta el árbol de entrada', () => {
+    const before = JSON.stringify(GROUPS);
+    filterGroupsByHiddenHrefs(GROUPS, new Set(['/retos']));
+    expect(JSON.stringify(GROUPS)).toBe(before);
+  });
+
+  it('oculta un GRUPO entero con el centinela group:<label> (p.ej. Foros)', () => {
+    const withForos: SidebarGroup[] = [
+      {
+        label: 'Foros',
+        icon: 'hash',
+        collapsible: true,
+        canAdd: true,
+        items: [{ href: '/espacios/general', label: 'General', icon: 'hash' }],
+      },
+      ...GROUPS,
+    ];
+    const out = filterGroupsByHiddenHrefs(withForos, new Set(['group:Foros']));
+    expect(out.map((g) => g.label)).toEqual(['Aprendizaje', 'Personas']); // 'Foros' se va aunque tenga canAdd
+  });
+
+  it('el catálogo ofrece ocultar la sección Foros', () => {
+    const foros = MENU_VISIBILITY_CATALOG.find((s) => s.section === 'Foros');
+    expect(foros?.items.some((i) => i.href === 'group:Foros')).toBe(true);
+  });
+
+  it('el catálogo de la matriz de Admin coloca Retos en Aprendizaje', () => {
+    const aprendizaje = MENU_VISIBILITY_CATALOG.find((s) => s.section === 'Aprendizaje');
+    expect(aprendizaje?.items.some((i) => i.href === '/retos')).toBe(true);
+    const personas = MENU_VISIBILITY_CATALOG.find((s) => s.section === 'Personas');
+    expect(personas?.items.some((i) => i.href === '/retos')).toBe(false);
   });
 });

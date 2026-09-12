@@ -32,6 +32,7 @@ import {
   buildGroups,
   buildAdminGroups,
   applyAdminBadges,
+  filterGroupsByHiddenHrefs,
   ADMIN_BACK_LINK,
 } from '@/lib/sidebar-nav';
 import { useAdminPendingCounts } from '@/lib/admin-pending-counts';
@@ -279,6 +280,33 @@ function Shell({
     return () => window.removeEventListener('didacta:modules-changed', refresh);
   }, []);
 
+  // Menú por rol: hrefs que el admin ocultó a los roles del usuario. Null hasta
+  // resolver (no se filtra nada mientras tanto). Se refresca en caliente cuando
+  // el admin guarda en /admin/menu (evento `didacta:nav-visibility-changed`).
+  const [navHidden, setNavHidden] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    function load() {
+      const token = authStorage.getAccessToken();
+      if (!token) return;
+      meApi
+        .getNavHidden(token)
+        .then((res) => {
+          if (!cancelled) setNavHidden(new Set(res.hidden));
+        })
+        .catch(() => {
+          // Ante fallo, no ocultamos nada (menú completo): degradación segura.
+          if (!cancelled) setNavHidden(new Set());
+        });
+    }
+    load();
+    window.addEventListener('didacta:nav-visibility-changed', load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('didacta:nav-visibility-changed', load);
+    };
+  }, []);
+
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
 
   // Drawer de navegación móvil. Se cierra ante CUALQUIER cambio de ruta (tap en
@@ -341,10 +369,15 @@ function Shell({
   const userRoles = new Set(session.user.roles);
   const mergedGroups = mergeExtensionSidebarItems(baseGroups, moduleExtensions, userRoles);
   const filteredGroups = filterByActiveModules(mergedGroups, activeModules);
+  // Recorte por rol (Admin → «Menú por rol»): solo en el menú principal. En el
+  // área admin no se toca — el admin siempre ve su navegación completa.
+  const roleFilteredGroups = isAdminArea
+    ? filteredGroups
+    : filterGroupsByHiddenHrefs(filteredGroups, navHidden);
   // Badges de trabajo pendiente (solicitudes de inscripción, impagos). Se
   // aplican al final para que alcancen también a items aportados por módulos.
   const pendingCounts = useAdminPendingCounts(isAdminArea);
-  const groups = isAdminArea ? applyAdminBadges(filteredGroups, pendingCounts) : filteredGroups;
+  const groups = isAdminArea ? applyAdminBadges(filteredGroups, pendingCounts) : roleFilteredGroups;
 
   // `<title>` del documento: "Sección actual | Nombre del Tenant | Didacta".
   // Antes todas las páginas mostraban solo "Didacta" (default del root layout):

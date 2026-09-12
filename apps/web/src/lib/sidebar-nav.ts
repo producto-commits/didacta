@@ -130,6 +130,97 @@ export function buildGroups({
 }
 
 /**
+ * Visibilidad del menú por ROL (configurable en Admin → «Menú por rol»).
+ *
+ * El admin puede ocultar entradas del menú principal a un rol concreto (p.ej.
+ * que el alumno no vea «Miembros»). La config vive en el tenant-setting
+ * `nav/roleVisibility` = `{ [rol]: hrefsOcultos[] }`. El backend
+ * (`GET /me/nav-hidden`) calcula, para el usuario que llama, los hrefs ocultos
+ * (un href se oculta solo si lo está para TODOS sus roles) y NUNCA oculta nada
+ * a super_admin/tenant_admin. El sidebar filtra con `filterGroupsByHiddenHrefs`.
+ */
+
+/**
+ * Prefijo del centinela que oculta un GRUPO entero (no un item suelto). Se usa
+ * para grupos cuyos items son dinámicos y no tienen un href fijo que apagar —
+ * hoy 'Foros' (los espacios de comunidad). En el mapa se guarda como
+ * `group:Foros`; el catálogo de Admin lo ofrece como una entrada más.
+ */
+export const GROUP_HIDE_PREFIX = 'group:';
+
+/** Roles a los que el admin puede recortar el menú (los admin nunca se tocan). */
+export const MENU_VISIBILITY_ROLES = [
+  { key: 'alumno', label: 'Estudiante' },
+  { key: 'formador', label: 'Formador' },
+  { key: 'auditor', label: 'Auditor' },
+  { key: 'empresa_manager', label: 'Empresa' },
+] as const;
+
+/**
+ * Catálogo de entradas recortables del menú principal, agrupadas como en el
+ * sidebar. Es la fuente de la matriz de la página de Admin. Debe reflejar los
+ * items fijos de `buildGroups` más los de módulos que cuelgan del menú
+ * principal (Retos, Clasificación). Foros/Espacios (dinámicos por espacio) y la
+ * entrada de administración no se listan a propósito.
+ */
+export const MENU_VISIBILITY_CATALOG: {
+  section: string;
+  items: { href: string; label: string }[];
+}[] = [
+  {
+    section: 'Inicio',
+    items: [
+      { href: '/comunidad', label: 'Feed de la comunidad' },
+      { href: '/inicio/mi-panel', label: 'Mi panel' },
+    ],
+  },
+  {
+    // 'Foros' es un grupo con espacios dinámicos dentro: se oculta el grupo
+    // entero con el centinela `group:Foros`, no un href suelto.
+    section: 'Foros',
+    items: [{ href: `${GROUP_HIDE_PREFIX}Foros`, label: 'Sección Foros (todos los espacios)' }],
+  },
+  {
+    section: 'Aprendizaje',
+    items: [
+      { href: '/cursos', label: 'Cursos' },
+      { href: '/mis-certificados', label: 'Certificados' },
+      { href: '/retos', label: 'Retos' },
+    ],
+  },
+  {
+    section: 'Agenda',
+    items: [{ href: '/calendario', label: 'Calendario' }],
+  },
+  {
+    section: 'Personas',
+    items: [
+      { href: '/miembros', label: 'Miembros' },
+      { href: '/leaderboard', label: 'Clasificación' },
+      { href: '/mensajes', label: 'Mensajes' },
+      { href: '/referidos', label: 'Referidos' },
+    ],
+  },
+];
+
+/**
+ * Quita del árbol los items cuyo href está en `hidden`, los GRUPOS marcados con
+ * `group:<label>`, y descarta los grupos que se quedan sin items. Puro: no muta
+ * la entrada. Si `hidden` es null/vacío devuelve los grupos tal cual (primer
+ * render, o sin config).
+ */
+export function filterGroupsByHiddenHrefs(
+  groups: SidebarGroup[],
+  hidden: Set<string> | null,
+): SidebarGroup[] {
+  if (!hidden || hidden.size === 0) return groups;
+  return groups
+    .filter((g) => !hidden.has(`${GROUP_HIDE_PREFIX}${g.label}`))
+    .map((g) => ({ ...g, items: g.items.filter((it) => !hidden.has(it.href)) }))
+    .filter((g) => g.items.length > 0 || g.canAdd);
+}
+
+/**
  * Enlace de vuelta al área de usuario. Antes era el primer ITEM del grupo
  * "General" — un control de navegación disfrazado de sección. Ahora lo pinta
  * el propio sidebar en la cabecera (`SidebarContent.backLink`).
@@ -267,6 +358,7 @@ export function buildAdminGroups({ isSuperAdmin }: { isSuperAdmin: boolean }): S
     icon: 'palette',
     items: [
       { href: '/admin/branding', label: 'Branding', icon: 'palette' },
+      { href: '/admin/menu', label: 'Menú por rol', icon: 'eye' },
       { href: '/admin/dominios', label: 'Dominios propios', icon: 'globe' },
       { href: '/admin/configuracion', label: 'Configuración', icon: 'cog' },
     ],

@@ -10,7 +10,11 @@ import { CurrentUser, MfaExempt } from '../auth/decorators';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { SessionClaims } from '../auth/token.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ModuleContextFactory } from './module-context.factory';
 import { TenantModulesService } from './tenant-modules.service';
+
+/** Roles a los que NUNCA se les recorta el menú (evita que un admin se autoexcluya). */
+const NAV_ADMIN_ROLES = new Set(['super_admin', 'tenant_admin']);
 
 /**
  * Endpoint para el sidebar del frontend (gating UI).
@@ -46,6 +50,7 @@ export class MeModulesController {
     private readonly tenantModules: TenantModulesService,
     private readonly license: LicenseService,
     private readonly prisma: PrismaService,
+    private readonly modules: ModuleContextFactory,
   ) {}
 
   @Get('modules')
@@ -75,5 +80,40 @@ export class MeModulesController {
 
     const enabledCapabilities = ALL_CAPABILITIES.filter((c) => this.license.isCapabilityEnabled(c));
     return { activeModules, enabledCapabilities };
+  }
+
+  @Get('nav-hidden')
+  @MfaExempt()
+  @ApiOperation({
+    summary:
+      'Hrefs del menú que el admin ocultó para los roles de quien llama. Lo consume el sidebar para recortar la navegación por rol. Nunca oculta nada a super_admin/tenant_admin.',
+  })
+  async navHidden(@CurrentUser() user: SessionClaims | undefined): Promise<{ hidden: string[] }> {
+    if (!user) throw new UnauthorizedException();
+    // Los admin ven el menú completo: recortarlo podría dejarles sin acceso a
+    // la propia página que configura esto.
+    if (user.roles.some((r) => NAV_ADMIN_ROLES.has(r))) return { hidden: [] };
+
+    // Mapa `{ rol: hrefsOcultos[] }` guardado en el tenant-setting nav/roleVisibility.
+    let map: Record<string, string[]> = {};
+    try {
+      const raw = await this.modules.getTenantConfig().get(user.tenantId, 'nav', 'roleVisibility');
+      if (raw && typeof raw === 'object') map = raw as Record<string, string[]>;
+    } catch {
+      // Sin config (404) o fallo de lectura: no se oculta nada. Nunca se
+      // bloquea el sidebar por no poder leer esto.
+      return { hidden: [] };
+    }
+
+    const roles = user.roles.filter((r) => !NAV_ADMIN_ROLES.has(r));
+    if (roles.length === 0) return { hidden: [] };
+    // Un href se oculta solo si está oculto para TODOS los roles del usuario:
+    // si algún rol suyo lo permite, lo ve (intersección de los conjuntos).
+    const sets = roles.map((r) => new Set(Array.isArray(map[r]) ? map[r] : []));
+    const first = sets[0];
+    if (!first) return { hidden: [] };
+    const rest = sets.slice(1);
+    const hidden = [...first].filter((href) => rest.every((s) => s.has(href)));
+    return { hidden };
   }
 }
