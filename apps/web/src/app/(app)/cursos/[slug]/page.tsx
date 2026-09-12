@@ -700,6 +700,12 @@ export default function CourseAlumnoPage() {
                   // el valor real (completadas/total) que devuelve el backend.
                   setProgressByLesson((map) => ({ ...map, [activeLesson.id]: true }));
                 }}
+                onUncompleted={() => {
+                  // Desmarcada (estaba puesta por error): quita el check verde. El %
+                  // del curso baja solo (onProgress trae el nuevo completadas/total).
+                  setProgressByLesson((map) => ({ ...map, [activeLesson.id]: false }));
+                  setEnrollment((e) => (e ? { ...e, status: 'ACTIVE' } : e));
+                }}
                 onProgress={(percent) => {
                   setEnrollment((e) => (e ? { ...e, progressPercent: percent } : e));
                   // Si con esta lección se alcanza el umbral de completado, reflejar

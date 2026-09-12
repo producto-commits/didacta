@@ -42,6 +42,8 @@ interface Props {
   onProgress?: (progressPercent: number) => void;
   /** Se dispara cuando la lección se marca COMPLETADA (check manual o auto a 30s del final). */
   onCompleted?: () => void;
+  /** Se dispara al DESMARCAR la lección (deshacer un completado puesto por error). */
+  onUncompleted?: () => void;
   /**
    * Posición actual del vídeo (segundos), cada vez que el reproductor reporta.
    * La usa el tutor IA para saber por dónde va el alumno cuando pregunta. Sólo
@@ -91,6 +93,7 @@ export function LessonPlayer({
   initialCompleted = false,
   onProgress,
   onCompleted,
+  onUncompleted,
   onPosition,
   preview = false,
 }: Props) {
@@ -182,6 +185,20 @@ export function LessonPlayer({
     }
   }
 
+  // Deshacer un completado (p.ej. marcado por error): vuelve la lección a
+  // no-completada y baja el % del curso en consecuencia.
+  async function unmarkCompleted() {
+    setPending(true);
+    setError(null);
+    try {
+      await sendDelta(0, { completed: false });
+      setCompleted(false);
+      onUncompleted?.();
+    } finally {
+      setPending(false);
+    }
+  }
+
   // En lecciones QUIZ, "completada" no es manual — lo dispara el bridge
   // en backend cuando el alumno aprueba (assessments.attempt.passed). En
   // preview no se puede completar (no hay matrícula).
@@ -233,10 +250,17 @@ export function LessonPlayer({
           {/* Check estilo Skool: círculo verde al completar; contorno clicable
               si falta. El vídeo lo marca solo cuando quedan ≤30s (onNearEnd). */}
           {completed ? (
-            <div
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-success-500 text-white shadow-sm"
-              title={t('lesson.completed')}
-              aria-label={t('lesson.completed')}
+            <button
+              type="button"
+              onClick={showManualCompleteButton ? unmarkCompleted : undefined}
+              disabled={pending || !showManualCompleteButton}
+              title={
+                showManualCompleteButton ? 'Desmarcar (marcada por error)' : t('lesson.completed')
+              }
+              aria-label={
+                showManualCompleteButton ? 'Marcar como no completada' : t('lesson.completed')
+              }
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-success-500 text-white shadow-sm transition-transform hover:scale-110 disabled:cursor-default disabled:hover:scale-100"
             >
               <svg
                 width="15"
@@ -251,7 +275,7 @@ export function LessonPlayer({
               >
                 <path d="M20 6L9 17l-5-5" />
               </svg>
-            </div>
+            </button>
           ) : showManualCompleteButton ? (
             <button
               type="button"
