@@ -19,7 +19,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-brand-500 text-text-on-brand shadow-sm hover:bg-brand-600 active:bg-brand-700',
+        primary:
+          'bg-gradient-to-br from-brand-400 to-brand-600 text-text-on-brand shadow-sm transition hover:-translate-y-px hover:shadow-md hover:from-brand-500 hover:to-brand-700 active:translate-y-0',
         secondary:
           'bg-surface text-text border border-border-strong hover:bg-surface-2 hover:border-border-strong',
         success:
@@ -29,7 +30,8 @@ const buttonVariants = cva(
         ghost: 'text-text hover:bg-surface-3',
         link: 'text-brand-500 underline-offset-4 hover:underline',
         // Alias para compat con código existente que usa "default" | "outline".
-        default: 'bg-brand-500 text-text-on-brand shadow-sm hover:bg-brand-600 active:bg-brand-700',
+        default:
+          'bg-gradient-to-br from-brand-400 to-brand-600 text-text-on-brand shadow-sm transition hover:-translate-y-px hover:shadow-md hover:from-brand-500 hover:to-brand-700 active:translate-y-0',
         outline:
           'bg-surface text-text border border-border-strong hover:bg-surface-2 hover:border-border-strong',
       },

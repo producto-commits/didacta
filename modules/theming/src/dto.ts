@@ -177,8 +177,9 @@ export interface ThemeSnapshot {
 }
 
 export const DEFAULT_THEME = Object.freeze({
-  brandHue: 213,
-  brandSaturation: 70,
+  // Naranja Dropi (#ff9d38 ≈ hsl(30, 95%)) como marca por defecto del fork.
+  brandHue: 30,
+  brandSaturation: 95,
   displayFontFamily: 'Sora' as DisplayFont,
   bodyFontFamily: 'Inter' as BodyFont,
 });
