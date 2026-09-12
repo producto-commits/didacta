@@ -4,7 +4,7 @@
  */
 
 import type { Metadata } from 'next';
-import { Inter, Sora } from 'next/font/google';
+import { Inter, Sora, IBM_Plex_Sans } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
@@ -25,6 +25,14 @@ const sora = Sora({
   variable: '--font-sora',
   display: 'swap',
   weight: ['400', '600', '700', '800'],
+});
+
+// IBM Plex Sans: fuente del login al estilo Dropi (app.dropi.co).
+const ibmPlex = IBM_Plex_Sans({
+  subsets: ['latin'],
+  variable: '--font-ibm-plex',
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
 });
 
 /**
@@ -48,7 +56,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const locale = await getLocale();
   const messages = await getMessages();
   return (
-    <html lang={locale} className={`${inter.variable} ${sora.variable}`} suppressHydrationWarning>
+    <html
+      lang={locale}
+      className={`${inter.variable} ${sora.variable} ${ibmPlex.variable}`}
+      suppressHydrationWarning
+    >
       <body>
         {/*
          * TenantThemeProvider en el ROOT para que el branding por tenant

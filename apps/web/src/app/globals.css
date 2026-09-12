@@ -741,3 +741,30 @@ table,
 .acceso-total-cta:hover {
   background: linear-gradient(180deg, #fbeeb8 0%, #f2d478 55%, #e0b43c 100%);
 }
+
+/* ---------------------------------------------------------------------------
+ * Login al estilo Dropi (app.dropi.co): la sección 2 usa IBM Plex Sans y un
+ * CTA azul (acento sobre el naranja de la marca). Scoped a `.auth-pane` para
+ * no afectar el resto de la plataforma (que va en naranja).
+ * ------------------------------------------------------------------------- */
+.auth-pane {
+  font-family: var(--font-ibm-plex), 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+}
+.auth-pane button[type='submit'] {
+  background-image: linear-gradient(135deg, #8ac3f6 0%, #6aa9ef 100%);
+  box-shadow: 0 4px 14px rgba(138, 195, 246, 0.4);
+}
+.auth-pane button[type='submit']:hover {
+  background-image: linear-gradient(135deg, #7ab6f2 0%, #579aec 100%);
+}
+/* Tarjeta del login estilo Dropi: título azul centrado, enlaces azules. */
+.auth-pane header {
+  text-align: center;
+}
+.auth-pane header h1 {
+  color: #3f83d1;
+  font-family: inherit;
+}
+.auth-pane a {
+  color: #3f83d1;
+}
