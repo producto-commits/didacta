@@ -40,6 +40,8 @@ interface Props {
   initialResumePositionSec?: number;
   initialCompleted?: boolean;
   onProgress?: (progressPercent: number) => void;
+  /** Se dispara cuando la lección se marca COMPLETADA (check manual o auto a 30s del final). */
+  onCompleted?: () => void;
   /**
    * Posición actual del vídeo (segundos), cada vez que el reproductor reporta.
    * La usa el tutor IA para saber por dónde va el alumno cuando pregunta. Sólo
@@ -88,6 +90,7 @@ export function LessonPlayer({
   initialResumePositionSec = 0,
   initialCompleted = false,
   onProgress,
+  onCompleted,
   onPosition,
   preview = false,
 }: Props) {
@@ -173,6 +176,7 @@ export function LessonPlayer({
     try {
       await sendDelta(0, { completed: true });
       setCompleted(true);
+      onCompleted?.();
     } finally {
       setPending(false);
     }

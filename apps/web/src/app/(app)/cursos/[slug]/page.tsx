@@ -694,9 +694,14 @@ export default function CourseAlumnoPage() {
                 initialResumePositionSec={resumeByLesson[activeLesson.id] ?? 0}
                 initialCompleted={Boolean(progressByLesson[activeLesson.id])}
                 onPosition={setLessonPosition}
+                onCompleted={() => {
+                  // La lección se completó DE VERDAD (check o auto a 30s del final):
+                  // pinta el check verde. El % del curso lo actualiza onProgress con
+                  // el valor real (completadas/total) que devuelve el backend.
+                  setProgressByLesson((map) => ({ ...map, [activeLesson.id]: true }));
+                }}
                 onProgress={(percent) => {
                   setEnrollment((e) => (e ? { ...e, progressPercent: percent } : e));
-                  setProgressByLesson((map) => ({ ...map, [activeLesson.id]: true }));
                   // Si con esta lección se alcanza el umbral de completado, reflejar
                   // COMPLETED en el acto (sin recargar) y sondear el certificado, que
                   // el backend emite de forma asíncrona. Así el botón del hero pasa a
