@@ -68,9 +68,8 @@ interface Props {
  * pisar el theming. Compartido con el drawer móvil para que ambos coincidan.
  */
 export const SIDEBAR_BG_STYLE: CSSProperties = {
-  backgroundColor: 'var(--sidebar-bg, #0D1B2A)',
-  backgroundImage:
-    'linear-gradient(180deg, rgba(46,125,206,0.16) 0%, rgba(13,27,42,0) 34%, rgba(24,181,168,0.10) 100%)',
+  backgroundColor: '#ffffff',
+  borderRight: '1px solid rgba(15,23,42,0.08)',
 };
 
 /** Clave de localStorage con la preferencia rail-de-iconos del usuario. */
@@ -99,7 +98,7 @@ export function AppSidebar(props: Props) {
 
   return (
     <aside
-      className={`sticky top-0 hidden h-dvh shrink-0 flex-col self-start overflow-hidden text-white transition-[width] duration-300 ease-out lg:flex ${
+      className={`sticky top-0 hidden h-dvh shrink-0 flex-col self-start overflow-hidden text-slate-700 transition-[width] duration-300 ease-out lg:flex ${
         collapsed ? 'w-16' : 'w-65'
       }`}
       style={SIDEBAR_BG_STYLE}
@@ -187,7 +186,7 @@ export function SidebarContent({
   if (collapsed) {
     return (
       <>
-        <div className="flex flex-col items-center gap-1.5 border-b border-white/8 px-2 py-3">
+        <div className="flex flex-col items-center gap-1.5 border-b border-slate-200 px-2 py-3">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -198,7 +197,7 @@ export function SidebarContent({
               className="h-9 w-9 rounded-xl object-contain"
             />
           ) : (
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#1E5AA8]">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#ff9d38]">
               <Image src="/brand/anagrama.png" alt="" width={22} height={22} priority />
             </div>
           )}
@@ -208,7 +207,7 @@ export function SidebarContent({
               onClick={onToggleCollapsed}
               aria-label={t('sidebar.expandMenu')}
               title={t('sidebar.expandMenu')}
-              className="grid h-7 w-7 place-items-center rounded-lg text-white/40 transition-colors hover:bg-white/8 hover:text-white/80"
+              className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-900/[0.06] hover:text-slate-700"
             >
               <svg
                 width="14"
@@ -224,13 +223,13 @@ export function SidebarContent({
           ) : null}
         </div>
 
-        <div className="border-b border-white/8 px-2.5 py-2.5">
+        <div className="border-b border-slate-200 px-2.5 py-2.5">
           <button
             type="button"
             onClick={onOpenSearch}
             aria-label={t('sidebar.searchShortcut')}
             title={t('sidebar.searchShortcut')}
-            className="grid h-9 w-full place-items-center rounded-xl bg-white/8 text-white/40 ring-1 ring-white/5 transition-colors hover:bg-white/12 hover:text-white/70"
+            className="grid h-9 w-full place-items-center rounded-xl bg-slate-900/[0.05] text-slate-400 ring-1 ring-slate-900/5 transition-colors hover:bg-slate-900/[0.08] hover:text-slate-700"
           >
             <svg
               width="14"
@@ -247,13 +246,13 @@ export function SidebarContent({
         </div>
 
         {backLink ? (
-          <div className="border-b border-white/8 px-2.5 py-2">
+          <div className="border-b border-slate-200 px-2.5 py-2">
             <Link
               href={backLink.href as never}
               onClick={onNavigate}
               title={itemLabel(backLink.label)}
               aria-label={itemLabel(backLink.label)}
-              className="grid h-9 w-full place-items-center rounded-xl text-white/40 transition-colors hover:bg-white/8 hover:text-white/80"
+              className="grid h-9 w-full place-items-center rounded-xl text-slate-400 transition-colors hover:bg-slate-900/[0.06] hover:text-slate-700"
             >
               <Icon name="arrow-left" size={16} />
             </Link>
@@ -262,7 +261,10 @@ export function SidebarContent({
 
         <nav className="scrollbar-thin-dark flex-1 overflow-y-auto px-2.5 py-2">
           {groups.map((section, idx) => (
-            <div key={section.label} className={idx > 0 ? 'mt-2 border-t border-white/8 pt-2' : ''}>
+            <div
+              key={section.label}
+              className={idx > 0 ? 'mt-2 border-t border-slate-200 pt-2' : ''}
+            >
               {section.items.map((item) => {
                 const isActive = item.exactMatch
                   ? pathname === item.href
@@ -279,7 +281,7 @@ export function SidebarContent({
                     <span className="relative">
                       {item.avatar ? (
                         <span
-                          className="grid h-9 w-9 place-items-center rounded-xl text-[11px] font-bold text-white"
+                          className="grid h-9 w-9 place-items-center rounded-xl text-[11px] font-bold text-slate-700"
                           style={{ backgroundColor: item.avatar.color }}
                         >
                           {item.avatar.letter}
@@ -288,14 +290,14 @@ export function SidebarContent({
                         <span
                           className={
                             isActive
-                              ? 'grid h-9 w-9 place-items-center rounded-xl text-white shadow-[0_6px_18px_rgba(46,125,206,0.45)]'
-                              : 'grid h-9 w-9 place-items-center rounded-xl bg-white/6 text-white/55 transition-all duration-200 hover:bg-white/12 hover:text-white'
+                              ? 'grid h-9 w-9 place-items-center rounded-xl text-slate-700 shadow-[0_6px_18px_rgba(255,157,56,0.40)]'
+                              : 'grid h-9 w-9 place-items-center rounded-xl bg-slate-900/[0.04] text-slate-500 transition-all duration-200 hover:bg-slate-900/[0.08] hover:text-slate-900'
                           }
                           style={
                             isActive
                               ? {
                                   backgroundImage:
-                                    'linear-gradient(135deg, #2E7DCE 0%, #18B5A8 100%)',
+                                    'linear-gradient(135deg, #ffb15c 0%, #ff9d38 100%)',
                                 }
                               : undefined
                           }
@@ -308,7 +310,7 @@ export function SidebarContent({
                         </span>
                       )}
                       {item.dot || (item.badge && item.badge > 0) ? (
-                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#FF6F61] ring-2 ring-[#0D1B2A]" />
+                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#FF6F61] ring-2 ring-white" />
                       ) : null}
                     </span>
                   </Link>
@@ -326,7 +328,7 @@ export function SidebarContent({
                     aria-label={tNav('addToGroup', { group: groupLabel(section.label) })}
                     className="mb-1 flex w-full justify-center"
                   >
-                    <span className="grid h-9 w-9 place-items-center rounded-xl border border-dashed border-white/20 text-white/40 transition-colors hover:border-white/40 hover:bg-white/5 hover:text-white">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl border border-dashed border-slate-300 text-slate-400 transition-colors hover:border-slate-400 hover:bg-slate-900/[0.04] hover:text-slate-900">
                       <svg
                         width="14"
                         height="14"
@@ -347,7 +349,7 @@ export function SidebarContent({
                     aria-label={tNav('addToGroup', { group: groupLabel(section.label) })}
                     className="mb-1 flex w-full justify-center"
                   >
-                    <span className="grid h-9 w-9 place-items-center rounded-xl border border-dashed border-white/20 text-white/40 transition-colors hover:border-white/40 hover:bg-white/5 hover:text-white">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl border border-dashed border-slate-300 text-slate-400 transition-colors hover:border-slate-400 hover:bg-slate-900/[0.04] hover:text-slate-900">
                       <svg
                         width="14"
                         height="14"
@@ -366,7 +368,7 @@ export function SidebarContent({
           ))}
         </nav>
 
-        <div className="flex flex-col items-center gap-1.5 border-t border-white/8 px-2 py-3">
+        <div className="flex flex-col items-center gap-1.5 border-t border-slate-200 px-2 py-3">
           <Link
             href={'/cuenta' as never}
             onClick={onNavigate}
@@ -384,8 +386,8 @@ export function SidebarContent({
               />
             ) : (
               <span
-                className="grid h-8 w-8 place-items-center rounded-full text-[11px] font-bold text-white"
-                style={{ background: 'linear-gradient(135deg, #2E7DCE 0%, #18B5A8 100%)' }}
+                className="grid h-8 w-8 place-items-center rounded-full text-[11px] font-bold text-slate-700"
+                style={{ background: 'linear-gradient(135deg, #ffb15c 0%, #ff9d38 100%)' }}
               >
                 {initials || '·'}
               </span>
@@ -399,7 +401,7 @@ export function SidebarContent({
             }}
             aria-label={t('sidebar.logout')}
             title={t('sidebar.logout')}
-            className="grid h-7 w-7 place-items-center rounded-lg text-white/30 transition-colors hover:bg-white/8 hover:text-white/60"
+            className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-900/[0.06] hover:text-slate-600"
           >
             <svg
               width="14"
@@ -420,7 +422,7 @@ export function SidebarContent({
   return (
     <>
       {/* ── Community header ── */}
-      <div className="flex items-center gap-2 border-b border-white/8 px-4 py-3.5">
+      <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3.5">
         {logoUrl && logoDisplayMode === 'logo_and_name' ? (
           // Modo «logo y nombre» (mod.theming): isotipo compacto + nombre en
           // texto. Es la elección para logos cuadrados o sin wordmark.
@@ -432,7 +434,7 @@ export function SidebarContent({
               className="h-9 w-auto max-w-[72px] shrink-0 rounded-lg object-contain"
             />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[14px] font-bold leading-tight text-white">
+              <div className="truncate text-[14px] font-bold leading-tight text-slate-700">
                 {orgName}
               </div>
             </div>
@@ -449,14 +451,14 @@ export function SidebarContent({
           />
         ) : (
           <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#1E5AA8]">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#ff9d38]">
               <Image src="/brand/anagrama.png" alt="" width={22} height={22} priority />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[14px] font-bold leading-tight text-white">
+              <div className="truncate text-[14px] font-bold leading-tight text-slate-700">
                 {orgName}
               </div>
-              <div className="mt-0.5 text-[11px] text-white/40">
+              <div className="mt-0.5 text-[11px] text-slate-400">
                 {t('sidebar.communitySubtitle')}
               </div>
             </div>
@@ -468,7 +470,7 @@ export function SidebarContent({
             onClick={onToggleCollapsed}
             aria-label={t('sidebar.collapseMenu')}
             title={t('sidebar.collapseMenu')}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/40 transition-colors hover:bg-white/8 hover:text-white/80"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-900/[0.06] hover:text-slate-700"
           >
             <svg
               width="15"
@@ -487,7 +489,7 @@ export function SidebarContent({
             type="button"
             onClick={onClose}
             aria-label={t('closeMenu')}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/40 transition-colors hover:bg-white/8 hover:text-white/80"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-900/[0.06] hover:text-slate-700"
           >
             <Icon name="x" size={18} />
           </button>
@@ -495,11 +497,11 @@ export function SidebarContent({
       </div>
 
       {/* ── Search ── */}
-      <div className="border-b border-white/8 px-3 py-2.5">
+      <div className="border-b border-slate-200 px-3 py-2.5">
         <button
           type="button"
           onClick={onOpenSearch}
-          className="flex w-full items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[13px] text-white/35 ring-1 ring-white/5 transition-colors hover:bg-white/12 hover:text-white/55"
+          className="flex w-full items-center gap-2 rounded-xl bg-slate-900/[0.05] px-3 py-2 text-[13px] text-slate-400 ring-1 ring-slate-900/5 transition-colors hover:bg-slate-900/[0.08] hover:text-slate-600"
         >
           <svg
             width="13"
@@ -514,7 +516,7 @@ export function SidebarContent({
             <path d="m21 21-4.35-4.35" />
           </svg>
           <span className="flex-1 text-left">{t('sidebar.search')}</span>
-          <kbd className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white/25">
+          <kbd className="rounded bg-slate-900/[0.06] px-1.5 py-0.5 text-[10px] font-medium leading-none text-slate-300">
             ⌘K
           </kbd>
         </button>
@@ -522,11 +524,11 @@ export function SidebarContent({
 
       {/* ── Salida del área (admin → app) ── */}
       {backLink ? (
-        <div className="border-b border-white/8 px-3 py-2">
+        <div className="border-b border-slate-200 px-3 py-2">
           <Link
             href={backLink.href as never}
             onClick={onNavigate}
-            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-medium text-white/45 transition-colors hover:bg-white/5 hover:text-white/80"
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-medium text-slate-400 transition-colors hover:bg-slate-900/[0.04] hover:text-slate-700"
           >
             <Icon name="arrow-left" size={14} />
             <span>{itemLabel(backLink.label)}</span>
@@ -551,7 +553,7 @@ export function SidebarContent({
                       setOpenOverride((prev) => ({ ...prev, [section.label]: !expanded }))
                     }
                     aria-expanded={expanded}
-                    className="-mx-1 flex flex-1 items-center gap-1.5 rounded-lg px-1 py-1 text-[10px] font-bold uppercase tracking-widest text-white/50 transition-colors hover:bg-white/5 hover:text-white/90"
+                    className="-mx-1 flex flex-1 items-center gap-1.5 rounded-lg px-1 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 transition-colors hover:bg-slate-900/[0.04] hover:text-slate-800"
                   >
                     <span>{groupLabel(section.label)}</span>
                     <svg
@@ -566,13 +568,13 @@ export function SidebarContent({
                       <path d="m6 9 6 6 6-6" />
                     </svg>
                     {!expanded && section.items.length > 0 ? (
-                      <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold leading-none tracking-normal text-white/60">
+                      <span className="rounded-full bg-slate-900/[0.06] px-1.5 py-0.5 text-[9px] font-semibold leading-none tracking-normal text-slate-500">
                         {section.items.length}
                       </span>
                     ) : null}
                   </button>
                 ) : (
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                     {groupLabel(section.label)}
                   </span>
                 )}
@@ -585,7 +587,7 @@ export function SidebarContent({
                         onNavigate?.();
                       }}
                       aria-label={tNav('addToGroup', { group: groupLabel(section.label) })}
-                      className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white/8 text-white/50 ring-1 ring-white/10 transition-colors hover:bg-white/15 hover:text-white"
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-slate-900/[0.05] text-slate-500 ring-1 ring-slate-900/10 transition-colors hover:bg-slate-900/10 hover:text-slate-900"
                     >
                       <svg
                         width="12"
@@ -603,7 +605,7 @@ export function SidebarContent({
                       href={section.canAddHref as never}
                       onClick={onNavigate}
                       aria-label={tNav('addToGroup', { group: groupLabel(section.label) })}
-                      className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white/8 text-white/50 ring-1 ring-white/10 transition-colors hover:bg-white/15 hover:text-white"
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-slate-900/[0.05] text-slate-500 ring-1 ring-slate-900/10 transition-colors hover:bg-slate-900/10 hover:text-slate-900"
                     >
                       <svg
                         width="12"
@@ -620,7 +622,7 @@ export function SidebarContent({
                     <button
                       type="button"
                       aria-label={tNav('addToGroup', { group: groupLabel(section.label) })}
-                      className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white/8 text-white/50 ring-1 ring-white/10 transition-colors hover:bg-white/15 hover:text-white"
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-slate-900/[0.05] text-slate-500 ring-1 ring-slate-900/10 transition-colors hover:bg-slate-900/10 hover:text-slate-900"
                     >
                       <svg
                         width="12"
@@ -649,21 +651,21 @@ export function SidebarContent({
                         onClick={onNavigate}
                         className={
                           isActive
-                            ? 'group mb-0.5 flex items-center gap-2.5 rounded-xl px-2 py-1.25 text-[13px] font-semibold text-white shadow-[0_6px_18px_rgba(46,125,206,0.35)]'
-                            : 'group mb-0.5 flex items-center gap-2.5 rounded-xl px-2 py-1.25 text-[13px] font-medium text-white/60 transition-all duration-200 hover:translate-x-0.5 hover:bg-white/5 hover:text-white/90'
+                            ? 'group mb-0.5 flex items-center gap-2.5 rounded-xl px-2 py-1.25 text-[13px] font-semibold text-slate-700 shadow-[0_6px_18px_rgba(255,157,56,0.32)]'
+                            : 'group mb-0.5 flex items-center gap-2.5 rounded-xl px-2 py-1.25 text-[13px] font-medium text-slate-500 transition-all duration-200 hover:translate-x-0.5 hover:bg-slate-900/[0.04] hover:text-slate-800'
                         }
                         style={
                           isActive
                             ? {
                                 backgroundImage:
-                                  'linear-gradient(135deg, #2E7DCE 0%, #18B5A8 100%)',
+                                  'linear-gradient(135deg, #ffb15c 0%, #ff9d38 100%)',
                               }
                             : undefined
                         }
                       >
                         {item.avatar ? (
                           <div
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-bold text-white"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-bold text-slate-700"
                             style={{ backgroundColor: item.avatar.color }}
                           >
                             {item.avatar.letter}
@@ -672,8 +674,8 @@ export function SidebarContent({
                           <span
                             className={
                               isActive
-                                ? 'grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/20 text-white'
-                                : 'grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/6 text-white/55 transition-colors duration-200 group-hover:bg-white/10 group-hover:text-white/90'
+                                ? 'grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-slate-900/10 text-slate-700'
+                                : 'grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-slate-900/[0.04] text-slate-500 transition-colors duration-200 group-hover:bg-slate-900/[0.07] group-hover:text-slate-800'
                             }
                           >
                             {item.emoji ? (
@@ -688,7 +690,7 @@ export function SidebarContent({
                           <div className="h-1.75 w-1.75 shrink-0 rounded-full bg-[#FF6F61]" />
                         ) : null}
                         {item.badge && item.badge > 0 ? (
-                          <span className="rounded-full bg-[#FF6F61] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                          <span className="rounded-full bg-[#FF6F61] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-slate-700">
                             {item.badge}
                           </span>
                         ) : null}
@@ -704,7 +706,7 @@ export function SidebarContent({
       {/* ── User strip ── */}
       {/* La identidad (avatar + nombre) ES el enlace a "Mi perfil" (/cuenta).
           No hay item de menú separado: se accede pulsando el nombre del usuario. */}
-      <div className="border-t border-white/8 px-3.5 py-3">
+      <div className="border-t border-slate-200 px-3.5 py-3">
         <div className="flex items-center gap-1.5">
           <Link
             href={'/cuenta' as never}
@@ -712,7 +714,9 @@ export function SidebarContent({
             title={t('sidebar.myProfile')}
             aria-label={t('sidebar.myProfile')}
             className={
-              (pathname?.startsWith('/cuenta') ? 'bg-white/8 ' : 'hover:bg-white/5 ') +
+              (pathname?.startsWith('/cuenta')
+                ? 'bg-slate-900/[0.05] '
+                : 'hover:bg-slate-900/[0.04] ') +
               'flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors'
             }
           >
@@ -727,17 +731,17 @@ export function SidebarContent({
               />
             ) : (
               <div
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
-                style={{ background: 'linear-gradient(135deg, #2E7DCE 0%, #18B5A8 100%)' }}
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-bold text-slate-700"
+                style={{ background: 'linear-gradient(135deg, #ffb15c 0%, #ff9d38 100%)' }}
               >
                 {initials || '·'}
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[12px] font-semibold leading-tight text-white">
+              <div className="truncate text-[12px] font-semibold leading-tight text-slate-700">
                 {name}
               </div>
-              <div className="truncate text-[11px] text-white/40">
+              <div className="truncate text-[11px] text-slate-400">
                 {humanRole(role, t)} · {session.user.tenantSlug}
               </div>
             </div>
@@ -750,7 +754,7 @@ export function SidebarContent({
             }}
             aria-label={t('sidebar.logout')}
             title={t('sidebar.logout')}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-white/30 transition-colors hover:bg-white/8 hover:text-white/60"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-900/[0.06] hover:text-slate-600"
           >
             <svg
               width="15"
