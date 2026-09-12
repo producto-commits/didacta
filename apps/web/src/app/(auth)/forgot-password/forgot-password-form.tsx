@@ -96,6 +96,7 @@ export function ForgotPasswordForm() {
           type="email"
           autoComplete="email"
           required
+          placeholder="Correo"
           className="h-12"
         />
       </div>
