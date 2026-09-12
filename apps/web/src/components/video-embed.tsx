@@ -46,6 +46,12 @@ interface Props {
    * antes de dar play, en vez del rectángulo negro. Puede ser un data URI.
    */
   poster?: string;
+  /**
+   * % del vídeo VISTO (0–100), para `<video>` self-hosted (mp4/webm). Se calcula
+   * como la posición máxima alcanzada / duración, y alimenta la barra de
+   * progreso de la lección. No aplica a YouTube (no medible sin su API).
+   */
+  onVideoProgress?: (percent: number) => void;
 }
 
 /**
@@ -64,8 +70,14 @@ export function VideoEmbed({
   onWatch,
   watchEnabled = true,
   poster,
+  onVideoProgress,
 }: Props) {
   const t = useTranslations('playersContenido');
+  // Tracking del <video> self-hosted: posición máxima vista, delta reproducido
+  // y throttle del reporte al backend.
+  const lastTimeRef = useRef(0);
+  const maxWatchedRef = useRef(0);
+  const accumDeltaRef = useRef(0);
   // `seek` cambia al pulsar un capítulo; `nonce` fuerza el re-mount del iframe.
   const [seek, setSeek] = useState<{ seconds: number; nonce: number } | null>(null);
   const nonceRef = useRef(0);
@@ -156,6 +168,62 @@ export function VideoEmbed({
         onLoadedMetadata={(e) => {
           const v = e.currentTarget;
           if (resumeAt > 0 && resumeAt < v.duration) v.currentTime = resumeAt;
+          lastTimeRef.current = v.currentTime;
+          maxWatchedRef.current = Math.max(maxWatchedRef.current, v.currentTime);
+          if (v.duration > 0) {
+            onVideoProgress?.(Math.min(100, (maxWatchedRef.current / v.duration) * 100));
+          }
+        }}
+        onTimeUpdate={(e) => {
+          const v = e.currentTarget;
+          const delta = v.currentTime - lastTimeRef.current;
+          lastTimeRef.current = v.currentTime;
+          // Solo cuenta reproducción REAL (delta pequeño y positivo); ignora seeks/saltos.
+          if (delta > 0 && delta < 2) {
+            accumDeltaRef.current += delta;
+            if (v.currentTime > maxWatchedRef.current) maxWatchedRef.current = v.currentTime;
+            if (v.duration > 0) {
+              onVideoProgress?.(Math.min(100, (maxWatchedRef.current / v.duration) * 100));
+            }
+          }
+          // Reporta al backend como mucho cada ~10s de reproducción acumulada.
+          if (watchEnabled && accumDeltaRef.current >= 10) {
+            onWatch?.({
+              positionSeconds: v.currentTime,
+              watchedSecondsDelta: accumDeltaRef.current,
+              maxPositionSeconds: maxWatchedRef.current,
+              durationSeconds: v.duration || 0,
+              ended: false,
+            });
+            accumDeltaRef.current = 0;
+          }
+        }}
+        onPause={(e) => {
+          const v = e.currentTarget;
+          if (watchEnabled && accumDeltaRef.current > 0) {
+            onWatch?.({
+              positionSeconds: v.currentTime,
+              watchedSecondsDelta: accumDeltaRef.current,
+              maxPositionSeconds: maxWatchedRef.current,
+              durationSeconds: v.duration || 0,
+              ended: false,
+            });
+            accumDeltaRef.current = 0;
+          }
+        }}
+        onEnded={(e) => {
+          const v = e.currentTarget;
+          onVideoProgress?.(100);
+          if (watchEnabled) {
+            onWatch?.({
+              positionSeconds: v.duration || v.currentTime,
+              watchedSecondsDelta: accumDeltaRef.current,
+              maxPositionSeconds: maxWatchedRef.current,
+              durationSeconds: v.duration || 0,
+              ended: true,
+            });
+          }
+          accumDeltaRef.current = 0;
         }}
       />
     );

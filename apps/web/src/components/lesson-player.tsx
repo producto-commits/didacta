@@ -17,7 +17,7 @@ import { apiErrorMessage } from '@/lib/i18n/api-error';
 import { labelOr } from '@/lib/i18n/labels';
 import { learningApi } from '@/lib/learning';
 import { safeExternalUrl, sanitizeLessonHtml, sanitizeRichHtml } from '@/lib/sanitize-html';
-import { parseBunny } from '@/lib/video';
+import { parseBunny, parseYouTubeId } from '@/lib/video';
 import type { WatchReport } from '@/lib/use-bunny-watch';
 
 /**
@@ -97,6 +97,8 @@ export function LessonPlayer({
   const [completed, setCompleted] = useState(initialCompleted);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // % del vídeo self-hosted visto (para la barra de progreso de la lección).
+  const [videoPercent, setVideoPercent] = useState(initialCompleted ? 100 : 0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // En vídeos de Bunny medimos el tiempo de visionado REAL vía Player.js (ver
@@ -107,6 +109,12 @@ export function LessonPlayer({
       ? (lesson.content['videoUrl'] as string)
       : '';
   const isBunnyVideo = Boolean(videoUrl && parseBunny(videoUrl));
+  const isYouTubeVideo = Boolean(videoUrl && parseYouTubeId(videoUrl));
+  // Vídeo self-hosted (mp4/webm servido por nosotros): el <video> reporta el
+  // visionado REAL (posición vista), así que no usamos el tick de "pestaña
+  // abierta". YouTube no es medible sin su API → sigue con el tick.
+  const isSelfHostedVideo =
+    lesson.type === 'VIDEO' && Boolean(videoUrl) && !isBunnyVideo && !isYouTubeVideo;
 
   const sendDelta = useCallback(
     async (delta: number, opts: { resumePositionSec?: number; completed?: boolean } = {}) => {
@@ -133,7 +141,7 @@ export function LessonPlayer({
   useEffect(() => {
     // Bunny mide visionado real; no sumamos tiempo de "pestaña abierta". En
     // preview no hay matrícula → no se trackea nada.
-    if (completed || isBunnyVideo || preview) return;
+    if (completed || isBunnyVideo || isSelfHostedVideo || preview) return;
     tickRef.current = setInterval(() => {
       if (document.visibilityState === 'visible') {
         void sendDelta(TICK_SEC);
@@ -142,7 +150,7 @@ export function LessonPlayer({
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
-  }, [completed, isBunnyVideo, sendDelta, preview]);
+  }, [completed, isBunnyVideo, isSelfHostedVideo, sendDelta, preview]);
 
   // Reporte de visionado real de Bunny: convertimos el delta (segundos
   // reproducidos) en una llamada de progreso y fijamos la posición de reanudación.
@@ -197,7 +205,28 @@ export function LessonPlayer({
             </p>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Barra de progreso del vídeo self-hosted: % efectivamente visto,
+              en vez de la indicación binaria completado/no. */}
+          {isSelfHostedVideo && !completed ? (
+            <div className="w-40 shrink-0">
+              <div className="mb-1 text-right text-xs font-medium text-text-muted tabular-nums">
+                {Math.round(videoPercent)}% del vídeo visto
+              </div>
+              <div
+                className="h-2 w-full overflow-hidden rounded-full bg-surface-3"
+                role="progressbar"
+                aria-valuenow={Math.round(videoPercent)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="h-full rounded-full bg-brand-500 transition-all duration-300"
+                  style={{ width: `${Math.round(videoPercent)}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
           {completed ? (
             <Badge variant="success" className="gap-1.5">
               <span aria-hidden="true">✓</span>
@@ -218,6 +247,7 @@ export function LessonPlayer({
           onTick={sendDelta}
           onWatch={handleWatch}
           watchEnabled={!completed && !preview}
+          onVideoProgress={setVideoPercent}
           enrollmentId={enrollmentId}
           preview={preview}
           onQuizPassed={() => setCompleted(true)}
@@ -244,6 +274,7 @@ function LessonContent({
   onQuizPassed,
   onWatch,
   watchEnabled,
+  onVideoProgress,
   preview,
 }: {
   lesson: CourseLesson & { content: Record<string, unknown> };
@@ -253,6 +284,7 @@ function LessonContent({
   onQuizPassed: () => void;
   onWatch: (report: WatchReport) => void;
   watchEnabled: boolean;
+  onVideoProgress?: (percent: number) => void;
   preview?: boolean;
 }) {
   const t = useTranslations('playersContenido');
@@ -284,6 +316,7 @@ function LessonContent({
           resources={resources}
           onWatch={onWatch}
           watchEnabled={watchEnabled}
+          onVideoProgress={onVideoProgress}
           poster={typeof content['videoPoster'] === 'string' ? content['videoPoster'] : undefined}
         />
         {complementHtml ? <LessonRichHtml html={complementHtml} /> : null}
