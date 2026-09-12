@@ -10,7 +10,6 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { QuizPlayer } from '@/components/quiz-player';
 import { VideoEmbed } from '@/components/video-embed';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { ApiHttpError } from '@/lib/api-client';
 import type { CourseLesson } from '@/lib/courses';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
@@ -227,15 +226,51 @@ export function LessonPlayer({
               </div>
             </div>
           ) : null}
+          {/* Check estilo Skool: círculo verde al completar; contorno clicable
+              si falta. El vídeo lo marca solo cuando quedan ≤30s (onNearEnd). */}
           {completed ? (
-            <Badge variant="success" className="gap-1.5">
-              <span aria-hidden="true">✓</span>
-              {t('lesson.completed')}
-            </Badge>
+            <div
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-success-500 text-white shadow-sm"
+              title={t('lesson.completed')}
+              aria-label={t('lesson.completed')}
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </div>
           ) : showManualCompleteButton ? (
-            <Button onClick={markCompleted} disabled={pending} variant="success">
-              {pending ? t('lesson.markCompletedPending') : t('lesson.markCompleted')}
-            </Button>
+            <button
+              type="button"
+              onClick={markCompleted}
+              disabled={pending}
+              title={t('lesson.markCompleted')}
+              aria-label={t('lesson.markCompleted')}
+              className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-slate-300 text-slate-300 transition-colors hover:border-success-500 hover:bg-success-50 hover:text-success-500 disabled:opacity-60"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </button>
           ) : null}
         </div>
       </header>
@@ -248,6 +283,9 @@ export function LessonPlayer({
           onWatch={handleWatch}
           watchEnabled={!completed && !preview}
           onVideoProgress={setVideoPercent}
+          onNearEnd={() => {
+            if (!completed && !preview) void markCompleted();
+          }}
           enrollmentId={enrollmentId}
           preview={preview}
           onQuizPassed={() => setCompleted(true)}
@@ -275,6 +313,7 @@ function LessonContent({
   onWatch,
   watchEnabled,
   onVideoProgress,
+  onNearEnd,
   preview,
 }: {
   lesson: CourseLesson & { content: Record<string, unknown> };
@@ -285,6 +324,7 @@ function LessonContent({
   onWatch: (report: WatchReport) => void;
   watchEnabled: boolean;
   onVideoProgress?: (percent: number) => void;
+  onNearEnd?: () => void;
   preview?: boolean;
 }) {
   const t = useTranslations('playersContenido');
@@ -317,6 +357,7 @@ function LessonContent({
           onWatch={onWatch}
           watchEnabled={watchEnabled}
           onVideoProgress={onVideoProgress}
+          onNearEnd={onNearEnd}
           poster={typeof content['videoPoster'] === 'string' ? content['videoPoster'] : undefined}
         />
         {complementHtml ? <LessonRichHtml html={complementHtml} /> : null}

@@ -52,6 +52,11 @@ interface Props {
    * progreso de la lección. No aplica a YouTube (no medible sin su API).
    */
   onVideoProgress?: (percent: number) => void;
+  /**
+   * Se dispara UNA vez cuando faltan ≤30s para el final del vídeo self-hosted:
+   * la lección se auto-marca como completada (estilo Skool). No aplica a YouTube.
+   */
+  onNearEnd?: () => void;
 }
 
 /**
@@ -71,6 +76,7 @@ export function VideoEmbed({
   watchEnabled = true,
   poster,
   onVideoProgress,
+  onNearEnd,
 }: Props) {
   const t = useTranslations('playersContenido');
   // Tracking del <video> self-hosted: posición máxima vista, delta reproducido
@@ -78,6 +84,7 @@ export function VideoEmbed({
   const lastTimeRef = useRef(0);
   const maxWatchedRef = useRef(0);
   const accumDeltaRef = useRef(0);
+  const nearEndFiredRef = useRef(false);
   // `seek` cambia al pulsar un capítulo; `nonce` fuerza el re-mount del iframe.
   const [seek, setSeek] = useState<{ seconds: number; nonce: number } | null>(null);
   const nonceRef = useRef(0);
@@ -168,6 +175,7 @@ export function VideoEmbed({
         onLoadedMetadata={(e) => {
           const v = e.currentTarget;
           if (resumeAt > 0 && resumeAt < v.duration) v.currentTime = resumeAt;
+          nearEndFiredRef.current = false;
           lastTimeRef.current = v.currentTime;
           maxWatchedRef.current = Math.max(maxWatchedRef.current, v.currentTime);
           if (v.duration > 0) {
@@ -196,6 +204,11 @@ export function VideoEmbed({
               ended: false,
             });
             accumDeltaRef.current = 0;
+          }
+          // Auto-completar (estilo Skool): cuando faltan ≤30s para el final.
+          if (!nearEndFiredRef.current && v.duration > 30 && v.currentTime >= v.duration - 30) {
+            nearEndFiredRef.current = true;
+            onNearEnd?.();
           }
         }}
         onPause={(e) => {
