@@ -620,12 +620,26 @@ export class LearningService {
       },
     });
 
+    // Transición a completada (no re-emitir en repasos): la lección pasa de
+    // no-completada a completada en ESTA llamada. Lo consume la gamificación
+    // (puntos por reto) vía el bus — el emisor no conoce al consumidor.
+    const newlyCompleted = dto.completed === true && existing?.completed !== true;
+
     const totals = await this.recalcEnrollmentProgress(enrollment.id, enrollment.tenantId);
     await this.publish(tenantId, userId, 'learning.progress.updated', {
       enrollmentId: enrollment.id,
       lessonId: dto.lessonId,
       progressPercent: totals.progressPercent,
     });
+
+    if (newlyCompleted) {
+      await this.publish(tenantId, userId, 'learning.lesson.completed', {
+        enrollmentId: enrollment.id,
+        courseId: enrollment.courseId,
+        lessonId: dto.lessonId,
+        userId,
+      });
+    }
 
     if (
       totals.progressPercent >= enrollment.completionThreshold &&

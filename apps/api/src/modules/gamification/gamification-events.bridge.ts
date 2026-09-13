@@ -11,6 +11,18 @@ import { ModuleRegistryService } from '../module-registry.service';
 const MODULE_NAME = 'mod.gamification';
 
 /**
+ * Puntos por reto que declara una lección en su `content.retoPoints`. Devuelve
+ * un entero > 0 solo si el valor es un número finito positivo (acepta también el
+ * número en string); en cualquier otro caso (ausente, 0, negativo, basura)
+ * devuelve 0 = "lección normal, sin puntos por reto". Pura y testeable.
+ */
+export function retoPointsFromContent(content: unknown): number {
+  const raw = (content as Record<string, unknown> | null | undefined)?.['retoPoints'];
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/**
  * Convierte los eventos que YA circulaban por el bus en asientos de puntos.
  *
  * Vive en el host, no en el módulo: el emisor no debe conocer al consumidor y
@@ -172,6 +184,33 @@ export class GamificationEventsBridge implements OnModuleInit {
       },
     );
 
+    // Puntos por RETO: cada lección puede llevar `content.retoPoints`. Al
+    // completarla (ver vídeo al %, aprobar el quiz, etc. — lo resuelve
+    // mod.learning) se otorgan ESOS puntos, distintos por reto (50/80/100/…),
+    // así que van como puntos EXPLÍCITOS (sin techo diario). Idempotente por
+    // matrícula+lección: repasar una lección ya completada no vuelve a pagar.
+    bus.subscribe<{ enrollmentId: string; courseId: string; lessonId: string; userId: string }>(
+      'learning.lesson.completed',
+      async (event) => {
+        await this.guard(event.metadata.tenantId, async (tenantId) => {
+          const lesson = await this.prisma.modCoursesLesson.findFirst({
+            where: { id: event.data.lessonId, tenantId },
+            select: { content: true },
+          });
+          const points = retoPointsFromContent(lesson?.content);
+          if (points <= 0) return; // lección normal, no reto
+          await this.award({
+            tenantId,
+            userId: event.data.userId,
+            ruleKey: 'learning.reto',
+            sourceKey: `learning.reto:${event.data.enrollmentId}:${event.data.lessonId}`,
+            points,
+            meta: { courseId: event.data.courseId, lessonId: event.data.lessonId },
+          });
+        });
+      },
+    );
+
     bus.subscribe<{ referralId: string; referrerUserId: string }>(
       'referrals.referral.attributed',
       async (event) => {
@@ -189,7 +228,7 @@ export class GamificationEventsBridge implements OnModuleInit {
       },
     );
 
-    this.logger.log('Gamificación suscrita a 8 eventos del bus');
+    this.logger.log('Gamificación suscrita a 9 eventos del bus');
   }
 
   /** Ejecuta el handler solo si el tenant tiene el módulo activo. Best-effort. */
@@ -213,6 +252,8 @@ export class GamificationEventsBridge implements OnModuleInit {
     userId: string;
     ruleKey: string;
     sourceKey: string;
+    /** Puntos explícitos (retos): si se pasan, ganan a la regla y sin techo diario. */
+    points?: number;
     occurredAt?: Date;
     meta?: Record<string, unknown>;
   }): Promise<void> {

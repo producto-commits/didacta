@@ -89,11 +89,24 @@ export function LessonContentEditor({
   const [quizId, setQuizId] = useState(
     typeof content['quizId'] === 'string' ? content['quizId'] : '',
   );
+  // Puntos de gamificación que otorga completar esta lección como RETO (0/vacío =
+  // lección normal, sin puntos por reto). Se guarda en el content; al completar
+  // la lección, el bridge de gamificación premia estos puntos.
+  const [retoPoints, setRetoPoints] = useState(
+    typeof content['retoPoints'] === 'number' ? String(content['retoPoints']) : '',
+  );
   const [publishAt, setPublishAt] = useState<string>(
     lesson.publishAt ? isoToLocalInput(lesson.publishAt) : '',
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  // Puntos por reto: solo si el campo trae un número > 0. Aplica a las lecciones
+  // que hacen de reto (vídeo o quiz); el resto no lo llevan.
+  function retoPointsField(): Record<string, unknown> {
+    const n = Number(retoPoints);
+    return Number.isFinite(n) && n > 0 ? { retoPoints: Math.floor(n) } : {};
+  }
 
   function buildContent(): Record<string, unknown> {
     switch (lesson.type) {
@@ -103,7 +116,7 @@ export function LessonContentEditor({
         // para poder borrarlo desde el editor.
         // `transcript`: lo que el tutor IA usa para responder sobre esta clase.
         // No se muestra al alumno; al guardar, la lección se reindexa sola.
-        return { videoUrl, videoPoster, resources, html, transcript };
+        return { videoUrl, videoPoster, resources, html, transcript, ...retoPointsField() };
       case 'PDF':
         return { pdfUrl };
       case 'HTML':
@@ -111,7 +124,7 @@ export function LessonContentEditor({
       case 'TEXT':
         return { text };
       case 'QUIZ':
-        return { quizId };
+        return { quizId, ...retoPointsField() };
       case 'SCORM':
         return content;
     }
@@ -375,6 +388,26 @@ export function LessonContentEditor({
       )}
 
       {lesson.type === 'SCORM' && <ScormUploader lessonId={lesson.id} />}
+
+      {(lesson.type === 'VIDEO' || lesson.type === 'QUIZ') && (
+        <div className="space-y-1.5 border-t border-border-soft pt-4">
+          <Label htmlFor={`retoPoints-${lesson.id}`}>Puntos del reto (gamificación)</Label>
+          <Input
+            id={`retoPoints-${lesson.id}`}
+            type="number"
+            min={0}
+            step={10}
+            value={retoPoints}
+            onChange={(e) => setRetoPoints(e.target.value)}
+            placeholder="0"
+            className="w-40"
+          />
+          <p className="text-xs text-text-subtle">
+            Puntos que gana el alumno al completar esta lección como reto (p. ej. 50). Vacío o 0 =
+            lección normal, sin puntos.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-1.5 border-t border-border-soft pt-4">
         <Label htmlFor={`publishAt-${lesson.id}`}>{t('publishAtLabel')}</Label>
