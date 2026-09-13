@@ -114,7 +114,7 @@
     "resources": "Resources"
   },
   "aiTutor": {
-    "title": "AI tutor",
+    "title": "Ask the course tutor",
     "introWithLesson": "Ask about «{lessonTitle}» or about any other part of the course. It answers with what is explained in class and tells you where to find it.",
     "intro": "Ask anything about the course. Answers are based on the published content and include citations to the lessons.",
     "quota": "You have <b>{remaining}</b> of {limit} questions left today.",

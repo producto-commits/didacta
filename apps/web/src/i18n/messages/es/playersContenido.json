@@ -114,7 +114,7 @@
     "resources": "Recursos"
   },
   "aiTutor": {
-    "title": "Pregúntale a Danna",
+    "title": "Pregúntale al tutor del curso",
     "introWithLesson": "Pregunta sobre «{lessonTitle}» o sobre cualquier otra parte del curso. Responde con lo que se explica en clase y te dice dónde verlo.",
     "intro": "Pregunta lo que quieras sobre el curso. Las respuestas se basan en el contenido publicado e incluyen citas a las lecciones.",
     "quota": "Te quedan <b>{remaining}</b> de {limit} preguntas hoy.",
