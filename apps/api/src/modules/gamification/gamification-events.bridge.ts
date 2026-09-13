@@ -23,6 +23,28 @@ export function retoPointsFromContent(content: unknown): number {
 }
 
 /**
+ * Insignia que declara una lección en su `content.retoBadge` = `{ label, emoji?,
+ * key? }`. Devuelve null si no hay label (sin nombre no hay insignia). `key`
+ * cae al label si no se define. Recorta a los límites de columna. Pura.
+ */
+export function retoBadgeFromContent(
+  content: unknown,
+): { key: string; label: string; emoji: string | null } | null {
+  const raw = (content as Record<string, unknown> | null | undefined)?.['retoBadge'];
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  const label = typeof b['label'] === 'string' ? b['label'].trim() : '';
+  if (!label) return null;
+  const keyRaw = typeof b['key'] === 'string' && b['key'].trim() ? b['key'].trim() : label;
+  const emoji = typeof b['emoji'] === 'string' && b['emoji'].trim() ? b['emoji'].trim() : null;
+  return {
+    key: keyRaw.slice(0, 64),
+    label: label.slice(0, 120),
+    emoji: emoji ? emoji.slice(0, 16) : null,
+  };
+}
+
+/**
  * Convierte los eventos que YA circulaban por el bus en asientos de puntos.
  *
  * Vive en el host, no en el módulo: el emisor no debe conocer al consumidor y
@@ -198,15 +220,31 @@ export class GamificationEventsBridge implements OnModuleInit {
             select: { content: true },
           });
           const points = retoPointsFromContent(lesson?.content);
-          if (points <= 0) return; // lección normal, no reto
-          await this.award({
-            tenantId,
-            userId: event.data.userId,
-            ruleKey: 'learning.reto',
-            sourceKey: `learning.reto:${event.data.enrollmentId}:${event.data.lessonId}`,
-            points,
-            meta: { courseId: event.data.courseId, lessonId: event.data.lessonId },
-          });
+          const badge = retoBadgeFromContent(lesson?.content);
+          if (points <= 0 && !badge) return; // lección normal, no reto
+          const sourceKey = `learning.reto:${event.data.enrollmentId}:${event.data.lessonId}`;
+          const meta = { courseId: event.data.courseId, lessonId: event.data.lessonId };
+          if (points > 0) {
+            await this.award({
+              tenantId,
+              userId: event.data.userId,
+              ruleKey: 'learning.reto',
+              sourceKey,
+              points,
+              meta,
+            });
+          }
+          if (badge) {
+            await this.registry.getGamificationService().grantBadge({
+              tenantId,
+              userId: event.data.userId,
+              badgeKey: badge.key,
+              label: badge.label,
+              emoji: badge.emoji,
+              sourceKey,
+              meta,
+            });
+          }
         });
       },
     );

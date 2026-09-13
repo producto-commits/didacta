@@ -95,6 +95,15 @@ export function LessonContentEditor({
   const [retoPoints, setRetoPoints] = useState(
     typeof content['retoPoints'] === 'number' ? String(content['retoPoints']) : '',
   );
+  // Insignia que gana el alumno al completar esta lección como reto. Se guarda
+  // en content.retoBadge = { label, emoji }; el bridge de gamificación la otorga.
+  const retoBadge = (content['retoBadge'] ?? {}) as Record<string, unknown>;
+  const [retoBadgeLabel, setRetoBadgeLabel] = useState(
+    typeof retoBadge['label'] === 'string' ? retoBadge['label'] : '',
+  );
+  const [retoBadgeEmoji, setRetoBadgeEmoji] = useState(
+    typeof retoBadge['emoji'] === 'string' ? retoBadge['emoji'] : '',
+  );
   const [publishAt, setPublishAt] = useState<string>(
     lesson.publishAt ? isoToLocalInput(lesson.publishAt) : '',
   );
@@ -108,6 +117,18 @@ export function LessonContentEditor({
     return Number.isFinite(n) && n > 0 ? { retoPoints: Math.floor(n) } : {};
   }
 
+  // Insignia del reto: solo si hay nombre. `key` la deriva el backend del label.
+  function retoBadgeField(): Record<string, unknown> {
+    const label = retoBadgeLabel.trim();
+    if (!label) return {};
+    const emoji = retoBadgeEmoji.trim();
+    return { retoBadge: emoji ? { label, emoji } : { label } };
+  }
+
+  function retoFields(): Record<string, unknown> {
+    return { ...retoPointsField(), ...retoBadgeField() };
+  }
+
   function buildContent(): Record<string, unknown> {
     switch (lesson.type) {
       case 'VIDEO':
@@ -116,7 +137,7 @@ export function LessonContentEditor({
         // para poder borrarlo desde el editor.
         // `transcript`: lo que el tutor IA usa para responder sobre esta clase.
         // No se muestra al alumno; al guardar, la lección se reindexa sola.
-        return { videoUrl, videoPoster, resources, html, transcript, ...retoPointsField() };
+        return { videoUrl, videoPoster, resources, html, transcript, ...retoFields() };
       case 'PDF':
         return { pdfUrl };
       case 'HTML':
@@ -124,7 +145,7 @@ export function LessonContentEditor({
       case 'TEXT':
         return { text };
       case 'QUIZ':
-        return { quizId, ...retoPointsField() };
+        return { quizId, ...retoFields() };
       case 'SCORM':
         return content;
     }
@@ -406,6 +427,33 @@ export function LessonContentEditor({
             Puntos que gana el alumno al completar esta lección como reto (p. ej. 50). Vacío o 0 =
             lección normal, sin puntos.
           </p>
+
+          <div className="pt-2">
+            <Label htmlFor={`retoBadge-${lesson.id}`}>Insignia del reto (opcional)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id={`retoBadgeEmoji-${lesson.id}`}
+                value={retoBadgeEmoji}
+                onChange={(e) => setRetoBadgeEmoji(e.target.value)}
+                placeholder="🧠"
+                maxLength={8}
+                className="w-16 text-center"
+                aria-label="Emoji de la insignia"
+              />
+              <Input
+                id={`retoBadge-${lesson.id}`}
+                value={retoBadgeLabel}
+                onChange={(e) => setRetoBadgeLabel(e.target.value)}
+                placeholder="Mente Dropshipper"
+                maxLength={120}
+                className="flex-1"
+              />
+            </div>
+            <p className="mt-1 text-xs text-text-subtle">
+              Insignia que se otorga al completar el reto (emoji + nombre). Se muestra en el perfil
+              del alumno. Vacío = sin insignia.
+            </p>
+          </div>
         </div>
       )}
 

@@ -338,6 +338,26 @@ function Hero({
               }
             />
           </dl>
+
+          {standing.badges.length > 0 ? (
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                {t('retos.insignias')}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {standing.badges.map((b) => (
+                  <span
+                    key={b.badgeKey}
+                    title={b.label}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-medium"
+                  >
+                    {b.emoji ? <span aria-hidden="true">{b.emoji}</span> : null}
+                    <span>{b.label}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

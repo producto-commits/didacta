@@ -55,6 +55,7 @@ export {
   type ChallengeView,
   type LeaderboardEntry,
   type LeaderboardRange,
+  type Badge,
   type LedgerEntry,
   type LevelView,
   type MyPerkView,

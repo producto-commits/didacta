@@ -4573,3 +4573,28 @@ model ModGamificationSubmission {
   @@index([tenantId, userId])
   @@map("mod_gamification_submission")
 }
+
+/// Insignia GANADA por un miembro. A diferencia de los niveles (umbral de
+/// puntos) o los perks (beneficios), una insignia es un reconocimiento discreto
+/// que se otorga por un hecho concreto — hoy, completar un reto (una lección con
+/// `content.retoBadge`). El nombre y el emoji van denormalizados para pintarla
+/// sin catálogo. Idempotente por (tenant, usuario, badgeKey): se gana una vez.
+model ModGamificationBadge {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  /// ID lógico del miembro (tabla core `user`, sin FK cross-module).
+  userId   String @map("user_id") @db.Uuid
+  /// Clave estable de la insignia (p.ej. `reto:1`, `mente-dropshipper`).
+  badgeKey String @map("badge_key") @db.VarChar(64)
+  /// Nombre visible ("Mente Dropshipper") y emoji ("🧠"), guardados al otorgar.
+  label String  @db.VarChar(120)
+  emoji String? @db.VarChar(16)
+  /// Clave del HECHO que la otorgó (matrícula+lección del reto), para trazar.
+  sourceKey String   @map("source_key") @db.VarChar(160)
+  meta      Json?
+  grantedAt DateTime @default(now()) @map("granted_at")
+
+  @@unique([tenantId, userId, badgeKey])
+  @@index([tenantId, userId, grantedAt(sort: Desc)])
+  @@map("mod_gamification_badge")
+}

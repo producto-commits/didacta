@@ -221,6 +221,12 @@ class MockPrisma {
     [['tenantId', 'userId']],
   );
 
+  // Insignias: los tests de standing solo necesitan que findMany no reviente.
+  modGamificationBadge = {
+    findMany: async () => [] as never[],
+    createMany: async () => ({ count: 0 }),
+  };
+
   modGamificationRule = makeTable(
     this.rules,
     () => ({

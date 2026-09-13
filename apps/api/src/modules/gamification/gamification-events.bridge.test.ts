@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { retoPointsFromContent } from './gamification-events.bridge';
+import { retoPointsFromContent, retoBadgeFromContent } from './gamification-events.bridge';
 
 describe('retoPointsFromContent (puntos por reto)', () => {
   it('devuelve los puntos cuando content.retoPoints es un número > 0', () => {
@@ -33,5 +33,40 @@ describe('retoPointsFromContent (puntos por reto)', () => {
     expect(retoPointsFromContent({ retoPoints: -50 })).toBe(0);
     expect(retoPointsFromContent({ retoPoints: 'abc' })).toBe(0);
     expect(retoPointsFromContent({ retoPoints: NaN })).toBe(0);
+  });
+});
+
+describe('retoBadgeFromContent (insignia por reto)', () => {
+  it('devuelve la insignia con emoji y label', () => {
+    expect(
+      retoBadgeFromContent({ retoBadge: { label: 'Mente Dropshipper', emoji: '🧠' } }),
+    ).toEqual({
+      key: 'Mente Dropshipper',
+      label: 'Mente Dropshipper',
+      emoji: '🧠',
+    });
+  });
+
+  it('usa `key` cuando se define; emoji opcional', () => {
+    expect(
+      retoBadgeFromContent({ retoBadge: { key: 'reto-1', label: 'Mente Dropshipper' } }),
+    ).toEqual({ key: 'reto-1', label: 'Mente Dropshipper', emoji: null });
+  });
+
+  // Controles: nada de esto debe otorgar insignia.
+  it('devuelve null sin label o sin retoBadge', () => {
+    expect(retoBadgeFromContent({ retoBadge: { emoji: '🧠' } })).toBeNull();
+    expect(retoBadgeFromContent({ retoBadge: {} })).toBeNull();
+    expect(retoBadgeFromContent({ retoBadge: 'x' })).toBeNull();
+    expect(retoBadgeFromContent({ videoUrl: 'x' })).toBeNull();
+    expect(retoBadgeFromContent(null)).toBeNull();
+  });
+
+  it('recorta label/key/emoji a los límites de columna', () => {
+    const long = 'x'.repeat(200);
+    const b = retoBadgeFromContent({ retoBadge: { label: long, emoji: long } })!;
+    expect(b.label.length).toBe(120);
+    expect(b.key.length).toBe(64);
+    expect(b.emoji!.length).toBe(16);
   });
 });

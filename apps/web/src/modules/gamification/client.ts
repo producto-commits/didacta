@@ -21,6 +21,13 @@ export interface LeaderboardEntry {
   displayName: string;
 }
 
+export interface Badge {
+  badgeKey: string;
+  label: string;
+  emoji: string | null;
+  grantedAt: string;
+}
+
 export interface Standing {
   points: number;
   rank: number | null;
@@ -28,6 +35,8 @@ export interface Standing {
   lifetimePoints: number;
   levelKey: string | null;
   levelName: string | null;
+  /** Insignias ganadas (p.ej. al completar retos). Puede venir vacío. */
+  badges: Badge[];
 }
 
 export interface LedgerEntry {

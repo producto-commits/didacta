@@ -586,6 +586,56 @@ export class GamificationService {
   }
 
   /** Puesto y saldo de una persona, para su perfil. */
+  /**
+   * Otorga una insignia a un miembro. Idempotente por (tenant, usuario,
+   * badgeKey): ganar el mismo reto dos veces no la duplica. El nombre y el emoji
+   * se guardan denormalizados para pintarla sin catálogo. Best-effort: separado
+   * del ledger de puntos (una insignia es un reconocimiento, no puntos).
+   */
+  async grantBadge(args: {
+    tenantId: string;
+    userId: string;
+    badgeKey: string;
+    label: string;
+    emoji?: string | null;
+    sourceKey: string;
+    meta?: Record<string, unknown>;
+  }): Promise<{ granted: boolean }> {
+    const res = await this.prisma.modGamificationBadge.createMany({
+      data: [
+        {
+          tenantId: args.tenantId,
+          userId: args.userId,
+          badgeKey: args.badgeKey,
+          label: args.label,
+          emoji: args.emoji ?? null,
+          sourceKey: args.sourceKey,
+          meta: (args.meta ?? undefined) as never,
+        },
+      ],
+      skipDuplicates: true,
+    });
+    return { granted: res.count > 0 };
+  }
+
+  /** Insignias ganadas por un miembro, más recientes primero. */
+  async listBadges(
+    tenantId: string,
+    userId: string,
+  ): Promise<{ badgeKey: string; label: string; emoji: string | null; grantedAt: Date }[]> {
+    const rows = await this.prisma.modGamificationBadge.findMany({
+      where: { tenantId, userId },
+      orderBy: { grantedAt: 'desc' },
+      take: LIST_LIMIT,
+    });
+    return rows.map((b) => ({
+      badgeKey: b.badgeKey,
+      label: b.label,
+      emoji: b.emoji,
+      grantedAt: b.grantedAt,
+    }));
+  }
+
   async standing(
     tenantId: string,
     userId: string,
@@ -598,12 +648,14 @@ export class GamificationService {
     lifetimePoints: number;
     levelKey: string | null;
     levelName: string | null;
+    badges: { badgeKey: string; label: string; emoji: string | null; grantedAt: Date }[];
   }> {
-    const [board, profile] = await Promise.all([
+    const [board, profile, badges] = await Promise.all([
       this.leaderboard(tenantId, range, LEADERBOARD_LIMIT, now),
       this.prisma.modGamificationProfile.findUnique({
         where: { tenantId_userId: { tenantId, userId } },
       }),
+      this.listBadges(tenantId, userId),
     ]);
 
     // El puesto se busca sobre el conjunto completo, no sobre el top 50.
@@ -650,6 +702,7 @@ export class GamificationService {
       lifetimePoints: profile?.lifetimePoints ?? 0,
       levelKey: profile?.levelKey ?? null,
       levelName,
+      badges,
     };
   }
 
