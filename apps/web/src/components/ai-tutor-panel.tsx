@@ -24,6 +24,9 @@ interface Props {
   lessonTitle?: string;
   /** Segundo del vídeo en el que va, si el reproductor lo reporta. */
   positionSeconds?: number;
+  /** Se dispara tras cada consulta respondida con éxito. Lo usa la "acción con
+   *  IA" del reto para marcarse completada con ≥1 interacción. */
+  onAsked?: () => void;
 }
 
 interface Turn {
@@ -49,7 +52,7 @@ interface Turn {
  *   - 429 AI_TUTOR_TOKEN_QUOTA_EXCEEDED / AI_PROVIDER_RATE_LIMIT.
  *   - 502 AI_PROVIDER_UNAVAILABLE / *_PROVIDER_ERROR.
  */
-export function AiTutorPanel({ courseId, lessonId, lessonTitle, positionSeconds }: Props) {
+export function AiTutorPanel({ courseId, lessonId, lessonTitle, positionSeconds, onAsked }: Props) {
   const t = useTranslations('playersContenido');
   const [question, setQuestion] = useState('');
   const [pending, setPending] = useState(false);
@@ -85,6 +88,7 @@ export function AiTutorPanel({ courseId, lessonId, lessonTitle, positionSeconds 
         },
       ]);
       setQuestion('');
+      onAsked?.();
     } catch (e) {
       setError(humanizeError(e, t));
     } finally {

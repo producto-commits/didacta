@@ -690,6 +690,7 @@ export default function CourseAlumnoPage() {
                     (activeLesson as CourseLesson & { content?: Record<string, unknown> })
                       .content ?? {},
                 }}
+                courseId={course.id}
                 enrollmentId={enrollment.id}
                 initialResumePositionSec={resumeByLesson[activeLesson.id] ?? 0}
                 initialCompleted={Boolean(progressByLesson[activeLesson.id])}

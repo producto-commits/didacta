@@ -115,6 +115,12 @@ export function LessonContentEditor({
       ? (profileQuestion['options'] as unknown[]).filter((o) => typeof o === 'string').join('\n')
       : '',
   );
+  // Acción con IA (Retos 2/3): el alumno debe hacer ≥1 consulta a Danna. Se
+  // guarda en content.aiAction = { prompt }; el player retiene el completado.
+  const aiAction = (content['aiAction'] ?? {}) as Record<string, unknown>;
+  const [aiActionPrompt, setAiActionPrompt] = useState(
+    typeof aiAction['prompt'] === 'string' ? aiAction['prompt'] : '',
+  );
   const [publishAt, setPublishAt] = useState<string>(
     lesson.publishAt ? isoToLocalInput(lesson.publishAt) : '',
   );
@@ -146,8 +152,19 @@ export function LessonContentEditor({
     return prompt && options.length >= 2 ? { profileQuestion: { prompt, options } } : {};
   }
 
+  // Acción con IA: solo si hay guía (prompt).
+  function aiActionField(): Record<string, unknown> {
+    const prompt = aiActionPrompt.trim();
+    return prompt ? { aiAction: { prompt } } : {};
+  }
+
   function retoFields(): Record<string, unknown> {
-    return { ...retoPointsField(), ...retoBadgeField(), ...profileQuestionField() };
+    return {
+      ...retoPointsField(),
+      ...retoBadgeField(),
+      ...profileQuestionField(),
+      ...aiActionField(),
+    };
   }
 
   function buildContent(): Record<string, unknown> {
@@ -498,6 +515,22 @@ export function LessonContentEditor({
               Pregunta de selección única que <strong>no puntúa ni bloquea</strong>: solo guarda la
               respuesta del alumno en su perfil (para personalización futura). Una opción por línea;
               mínimo 2. Vacío = sin pregunta.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <Label htmlFor={`aiAction-${lesson.id}`}>Acción con IA — Danna (opcional)</Label>
+            <Textarea
+              id={`aiAction-${lesson.id}`}
+              rows={2}
+              value={aiActionPrompt}
+              onChange={(e) => setAiActionPrompt(e.target.value)}
+              placeholder="Guía para el alumno, p. ej.: «Consultá con Danna cómo analizar tu primer producto»"
+            />
+            <p className="mt-1 text-xs text-text-subtle">
+              Si la rellenas, el reto exige al alumno <strong>al menos una consulta a Danna</strong>{' '}
+              antes de completarse (el vídeo no lo cierra hasta que lo haga). Vacío = sin acción de
+              IA.
             </p>
           </div>
         </div>

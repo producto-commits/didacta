@@ -4623,3 +4623,23 @@ model ModProfileAnswer {
   @@index([tenantId, questionKey])
   @@map("mod_profile_answer")
 }
+
+/// Acción EXTRA de un reto que el alumno completó, más allá del contenido
+/// principal (vídeo/quiz) — hoy la "acción con IA" (hablar con Danna). Una fila
+/// por (tenant, usuario, lección, acción). El player retiene la finalización
+/// del reto hasta que todas sus acciones extra estén aquí.
+model ModRetoActionDone {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  /// ID lógico del miembro (tabla core `user`, sin FK cross-module).
+  userId    String   @map("user_id") @db.Uuid
+  /// ID lógico de la lección-reto (sin FK cross-module).
+  lessonId  String   @map("lesson_id") @db.Uuid
+  /// Clave de la acción (p.ej. `ai`).
+  actionKey String   @map("action_key") @db.VarChar(64)
+  doneAt    DateTime @default(now()) @map("done_at")
+
+  @@unique([tenantId, userId, lessonId, actionKey])
+  @@index([tenantId, userId, lessonId])
+  @@map("mod_reto_action_done")
+}

@@ -9,9 +9,13 @@ import { useTranslations } from 'next-intl';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { QuizPlayer } from '@/components/quiz-player';
 import { ProfileQuestion, parseProfileQuestion } from '@/components/profile-question';
+import { AiTutorPanel } from '@/components/ai-tutor-panel';
 import { VideoEmbed } from '@/components/video-embed';
 import { Badge } from '@/components/ui/badge';
 import { ApiHttpError } from '@/lib/api-client';
+import { authStorage } from '@/lib/auth-storage';
+import { meApi } from '@/lib/me';
+import { parseAiAction } from '@/lib/reto-ai-action';
 import type { CourseLesson } from '@/lib/courses';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
 import { labelOr } from '@/lib/i18n/labels';
@@ -36,6 +40,8 @@ const LessonRichHtml = memo(function LessonRichHtml({ html }: { html: string }) 
 
 interface Props {
   lesson: CourseLesson & { content: Record<string, unknown> };
+  /** Curso al que pertenece la lección. Necesario para la "acción con IA" del reto (Danna). */
+  courseId?: string;
   /** Ausente en modo `preview` (editor/admin sin matrícula): no se reporta progreso. */
   enrollmentId?: string;
   initialResumePositionSec?: number;
@@ -89,6 +95,7 @@ const LESSON_TYPE_ICON: Record<string, string> = {
  */
 export function LessonPlayer({
   lesson,
+  courseId,
   enrollmentId,
   initialResumePositionSec = 0,
   initialCompleted = false,
@@ -99,6 +106,11 @@ export function LessonPlayer({
   preview = false,
 }: Props) {
   const t = useTranslations('playersContenido');
+  // Acción con IA del reto (Retos 2/3): se completa con ≥1 consulta a Danna.
+  // Retiene la autocompleción del vídeo hasta que esté hecha.
+  const aiAction = parseAiAction(lesson.content);
+  const [aiDone, setAiDone] = useState(false);
+  const [aiHeld, setAiHeld] = useState(false);
   const tErrors = useTranslations('errors');
   const [completed, setCompleted] = useState(initialCompleted);
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +209,58 @@ export function LessonPlayer({
       onUncompleted?.();
     } finally {
       setPending(false);
+    }
+  }
+
+  // Estado inicial de la acción con IA (si la hay): ¿ya la hizo el alumno?
+  useEffect(() => {
+    if (!aiAction || preview) return;
+    const token = authStorage.getAccessToken();
+    if (!token) return;
+    let cancelled = false;
+    meApi
+      .getRetoActions(token, lesson.id)
+      .then((res) => {
+        if (!cancelled && res.done.includes(aiAction.key)) setAiDone(true);
+      })
+      .catch(() => {
+        /* sin registro o fallo de red: se asume pendiente */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [aiAction, lesson.id, preview]);
+
+  // Autocompletar respetando la acción de IA: si el reto la exige y aún no está
+  // hecha, se RETIENE hasta que el alumno consulte a Danna (aiHeld).
+  function maybeAutoComplete() {
+    if (completed || preview) return;
+    if (aiAction && !aiDone) {
+      setAiHeld(true);
+      return;
+    }
+    void markCompleted();
+  }
+
+  // Si había un completado retenido por la acción de IA y ésta ya se hizo,
+  // finalizamos el reto.
+  useEffect(() => {
+    if (aiDone && aiHeld && !completed && !preview) void markCompleted();
+    // markCompleted no va en deps a propósito (se recrea cada render); las
+    // banderas de estado son el disparador real.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiDone, aiHeld, completed, preview]);
+
+  // Al hacer ≥1 consulta a Danna, la acción con IA queda completa (persistida).
+  async function onAiAsked() {
+    if (!aiAction || preview) return;
+    setAiDone(true);
+    const token = authStorage.getAccessToken();
+    if (!token) return;
+    try {
+      await meApi.markRetoAction(token, lesson.id, aiAction.key);
+    } catch {
+      /* best-effort: no bloquea */
     }
   }
 
@@ -312,9 +376,7 @@ export function LessonPlayer({
           onWatch={handleWatch}
           watchEnabled={!completed && !preview}
           onVideoProgress={setVideoPercent}
-          onNearEnd={() => {
-            if (!completed && !preview) void markCompleted();
-          }}
+          onNearEnd={maybeAutoComplete}
           enrollmentId={enrollmentId}
           preview={preview}
           onQuizPassed={() => setCompleted(true)}
@@ -326,6 +388,32 @@ export function LessonPlayer({
           const pq = parseProfileQuestion(lesson.content);
           return pq ? <ProfileQuestion spec={pq} preview={preview} /> : null;
         })()}
+
+        {aiAction && !preview ? (
+          <div className="mt-8">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+              <span aria-hidden="true">{aiDone ? '✅' : '🤖'}</span>
+              <span>Acción del reto: consultá con Danna</span>
+              {aiDone ? (
+                <span className="text-xs font-normal text-success-700">— hecho</span>
+              ) : null}
+            </div>
+            <p className="mb-3 text-sm text-text-muted">{aiAction.prompt}</p>
+            {courseId ? (
+              <AiTutorPanel
+                courseId={courseId}
+                lessonId={lesson.id}
+                lessonTitle={lesson.title}
+                onAsked={() => void onAiAsked()}
+              />
+            ) : null}
+            {aiHeld && !aiDone ? (
+              <p className="mt-2 text-xs text-warning-700">
+                Este reto se completa cuando hagas al menos una consulta a Danna aquí.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {error ? (
           <div

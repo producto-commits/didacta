@@ -160,6 +160,22 @@ export const meApi = {
     );
   },
 
+  /** Acciones EXTRA del reto ya completadas por el alumno en una lección (p.ej. la de IA). */
+  async getRetoActions(bearer: string, lessonId: string): Promise<{ done: string[] }> {
+    return apiFetch<{ done: string[] }>(
+      `/api/v1/me/reto-actions/${encodeURIComponent(lessonId)}`,
+      { method: 'GET' },
+      bearer,
+    );
+  },
+  async markRetoAction(bearer: string, lessonId: string, actionKey: string): Promise<{ ok: true }> {
+    return apiFetch<{ ok: true }>(
+      `/api/v1/me/reto-actions/${encodeURIComponent(lessonId)}/${encodeURIComponent(actionKey)}`,
+      { method: 'PUT' },
+      bearer,
+    );
+  },
+
   // ── Onboarding ─────────────────────────────────────────────────────────────
   async getOnboardingStatus(bearer: string): Promise<OnboardingStatus> {
     return apiFetch<OnboardingStatus>('/api/v1/me/onboarding/status', { method: 'GET' }, bearer);
