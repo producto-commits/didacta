@@ -4601,3 +4601,25 @@ model ModGamificationBadge {
   @@index([tenantId, userId, grantedAt(sort: Desc)])
   @@map("mod_gamification_badge")
 }
+
+/// Respuesta de un miembro a una "pregunta de perfil" (single-choice que NO
+/// puntúa ni bloquea; se captura para personalización futura — p.ej. la del
+/// Reto 1 "¿Cuál es tu situación actual?"). Una respuesta por (tenant, usuario,
+/// pregunta); el alumno puede cambiarla. La pregunta se declara en el `content`
+/// de la lección (`content.profileQuestion`).
+model ModProfileAnswer {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  /// ID lógico del miembro (tabla core `user`, sin FK cross-module).
+  userId      String   @map("user_id") @db.Uuid
+  /// Clave estable de la pregunta (p.ej. `situacion-actual`).
+  questionKey String   @map("question_key") @db.VarChar(64)
+  /// Texto de la opción elegida.
+  value       String   @db.VarChar(500)
+  answeredAt  DateTime @default(now()) @map("answered_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId, questionKey])
+  @@index([tenantId, questionKey])
+  @@map("mod_profile_answer")
+}

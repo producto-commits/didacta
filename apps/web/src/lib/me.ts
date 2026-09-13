@@ -138,6 +138,28 @@ export const meApi = {
     return apiFetch<{ hidden: string[] }>('/api/v1/me/nav-hidden', { method: 'GET' }, bearer);
   },
 
+  /**
+   * Respuestas a las "preguntas de perfil" (single-choice que no puntúan; se
+   * capturan para personalización futura, p.ej. la del Reto 1). Ver
+   * `MeProfileController`.
+   */
+  async getProfileAnswers(
+    bearer: string,
+  ): Promise<{ answers: { questionKey: string; value: string }[] }> {
+    return apiFetch<{ answers: { questionKey: string; value: string }[] }>(
+      '/api/v1/me/profile-answers',
+      { method: 'GET' },
+      bearer,
+    );
+  },
+  async saveProfileAnswer(bearer: string, key: string, value: string): Promise<{ ok: true }> {
+    return apiFetch<{ ok: true }>(
+      `/api/v1/me/profile-answers/${encodeURIComponent(key)}`,
+      { method: 'PUT', body: JSON.stringify({ value }) },
+      bearer,
+    );
+  },
+
   // ── Onboarding ─────────────────────────────────────────────────────────────
   async getOnboardingStatus(bearer: string): Promise<OnboardingStatus> {
     return apiFetch<OnboardingStatus>('/api/v1/me/onboarding/status', { method: 'GET' }, bearer);

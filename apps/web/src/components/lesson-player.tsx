@@ -8,6 +8,7 @@
 import { useTranslations } from 'next-intl';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { QuizPlayer } from '@/components/quiz-player';
+import { ProfileQuestion, parseProfileQuestion } from '@/components/profile-question';
 import { VideoEmbed } from '@/components/video-embed';
 import { Badge } from '@/components/ui/badge';
 import { ApiHttpError } from '@/lib/api-client';
@@ -318,6 +319,13 @@ export function LessonPlayer({
           preview={preview}
           onQuizPassed={() => setCompleted(true)}
         />
+
+        {(() => {
+          // Pregunta de perfil (p.ej. Reto 1): single-choice que no puntúa ni
+          // bloquea; solo captura un dato del alumno. Se pinta bajo el contenido.
+          const pq = parseProfileQuestion(lesson.content);
+          return pq ? <ProfileQuestion spec={pq} preview={preview} /> : null;
+        })()}
 
         {error ? (
           <div

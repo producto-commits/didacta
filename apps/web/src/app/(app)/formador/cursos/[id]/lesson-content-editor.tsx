@@ -104,6 +104,17 @@ export function LessonContentEditor({
   const [retoBadgeEmoji, setRetoBadgeEmoji] = useState(
     typeof retoBadge['emoji'] === 'string' ? retoBadge['emoji'] : '',
   );
+  // Pregunta de perfil (opcional): single-choice que no puntúa; captura un dato
+  // del alumno. Se guarda en content.profileQuestion = { prompt, options }.
+  const profileQuestion = (content['profileQuestion'] ?? {}) as Record<string, unknown>;
+  const [profilePrompt, setProfilePrompt] = useState(
+    typeof profileQuestion['prompt'] === 'string' ? profileQuestion['prompt'] : '',
+  );
+  const [profileOptionsText, setProfileOptionsText] = useState(
+    Array.isArray(profileQuestion['options'])
+      ? (profileQuestion['options'] as unknown[]).filter((o) => typeof o === 'string').join('\n')
+      : '',
+  );
   const [publishAt, setPublishAt] = useState<string>(
     lesson.publishAt ? isoToLocalInput(lesson.publishAt) : '',
   );
@@ -125,8 +136,18 @@ export function LessonContentEditor({
     return { retoBadge: emoji ? { label, emoji } : { label } };
   }
 
+  // Pregunta de perfil: solo si hay enunciado y al menos 2 opciones.
+  function profileQuestionField(): Record<string, unknown> {
+    const prompt = profilePrompt.trim();
+    const options = profileOptionsText
+      .split('\n')
+      .map((o) => o.trim())
+      .filter(Boolean);
+    return prompt && options.length >= 2 ? { profileQuestion: { prompt, options } } : {};
+  }
+
   function retoFields(): Record<string, unknown> {
-    return { ...retoPointsField(), ...retoBadgeField() };
+    return { ...retoPointsField(), ...retoBadgeField(), ...profileQuestionField() };
   }
 
   function buildContent(): Record<string, unknown> {
@@ -452,6 +473,31 @@ export function LessonContentEditor({
             <p className="mt-1 text-xs text-text-subtle">
               Insignia que se otorga al completar el reto (emoji + nombre). Se muestra en el perfil
               del alumno. Vacío = sin insignia.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <Label htmlFor={`profilePrompt-${lesson.id}`}>Pregunta de perfil (opcional)</Label>
+            <Input
+              id={`profilePrompt-${lesson.id}`}
+              value={profilePrompt}
+              onChange={(e) => setProfilePrompt(e.target.value)}
+              placeholder="¿Cuál es tu situación actual?"
+            />
+            <Textarea
+              id={`profileOptions-${lesson.id}`}
+              rows={4}
+              value={profileOptionsText}
+              onChange={(e) => setProfileOptionsText(e.target.value)}
+              placeholder={
+                'Una opción por línea:\nSoy nuevo en el comercio electrónico\nYa vendí algo antes pero quiero mejorar\n…'
+              }
+              className="mt-2"
+            />
+            <p className="mt-1 text-xs text-text-subtle">
+              Pregunta de selección única que <strong>no puntúa ni bloquea</strong>: solo guarda la
+              respuesta del alumno en su perfil (para personalización futura). Una opción por línea;
+              mínimo 2. Vacío = sin pregunta.
             </p>
           </div>
         </div>

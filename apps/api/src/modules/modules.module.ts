@@ -48,6 +48,7 @@ import { AccessGroupsService } from './access-groups/access-groups.service';
 import { AccessGroupsCoursesBridge } from './access-groups/access-groups-courses.bridge';
 import { AccessGroupsTiersBridge } from './access-groups/access-groups-tiers.bridge';
 import { MeModulesController } from './me-modules.controller';
+import { MeProfileController } from './me-profile.controller';
 import { TenantSettingsController } from './tenant-settings.controller';
 import { ThemingController } from './theming.controller';
 import { ThemingErrorFilter } from './theming-error.filter';
@@ -96,6 +97,7 @@ import { OutboxMetrics, outboxMetricsProviders } from './outbox.metrics';
     AiProvidersController,
     // GET /me/modules — sidebar gating UI (módulos activos + capabilities EE).
     MeModulesController,
+    MeProfileController,
     GroupsController,
     EventsController,
     AccessGroupsController,
