@@ -360,6 +360,42 @@ export function QuizPlayer({ quizId, enrollmentId, lessonId, onPassed }: Props) 
               : t('quiz.resultFailedHint')}
         </p>
 
+        {a.review && a.review.length > 0 ? (
+          <div className="mx-auto mt-6 max-w-xl space-y-3 text-left">
+            {a.review.map((r) => (
+              <div
+                key={r.questionId}
+                className={
+                  r.isCorrect
+                    ? 'rounded-lg border border-success-500/30 bg-success-50 p-3'
+                    : 'rounded-lg border border-warning-500/30 bg-warning-50 p-3'
+                }
+              >
+                <p className="flex items-start gap-2 text-sm font-medium text-text">
+                  <span aria-hidden="true">{r.isCorrect ? '✅' : '🔄'}</span>
+                  <span>{r.prompt}</span>
+                </p>
+                {r.feedback ? (
+                  <p
+                    className={
+                      r.isCorrect
+                        ? 'mt-1.5 pl-6 text-sm text-success-700'
+                        : 'mt-1.5 pl-6 text-sm text-warning-700'
+                    }
+                  >
+                    <span className="font-semibold">
+                      {r.isCorrect
+                        ? t('quiz.feedbackCorrectTitle')
+                        : t('quiz.feedbackIncorrectTitle')}
+                    </span>{' '}
+                    {r.feedback}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button variant="secondary" onClick={() => void load()} disabled={pending}>
             {t('quiz.backToQuiz')}

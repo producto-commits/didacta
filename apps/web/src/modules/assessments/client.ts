@@ -51,10 +51,20 @@ export interface FormadorQuestion {
   type: QuestionType;
   prompt: string;
   feedback: string | null;
+  /** Feedback al fallar; si es null, se usa `feedback`. */
+  feedbackIncorrect: string | null;
   position: number;
   points: number;
   options: FormadorOption[];
   acceptedAnswers: string[];
+}
+
+/** Revisión por pregunta que devuelve `submitAttempt` (si el quiz muestra feedback). */
+export interface ReviewItem {
+  questionId: string;
+  prompt: string;
+  isCorrect: boolean;
+  feedback: string | null;
 }
 
 export interface QuizFormadorView extends QuizSummary {
@@ -104,6 +114,8 @@ export interface AttemptSummary {
   submittedAt: string | null;
   gradedAt?: string | null;
   gradedById?: string | null;
+  /** Presente en la respuesta de `submitAttempt` cuando el quiz muestra feedback. */
+  review?: ReviewItem[];
 }
 
 export interface AttemptDetail extends AttemptSummary {
@@ -177,6 +189,7 @@ export const assessmentsApi = {
       type: QuestionType;
       prompt: string;
       feedback?: string;
+      feedbackIncorrect?: string;
       points?: number;
       options?: { label: string; isCorrect: boolean }[];
       acceptedAnswers?: string[];

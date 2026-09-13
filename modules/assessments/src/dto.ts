@@ -40,7 +40,10 @@ export const createQuestionSchema = z
   .object({
     type: questionTypeSchema,
     prompt: z.string().min(3).max(2000),
+    /** Feedback al ACERTAR. */
     feedback: z.string().max(2000).optional(),
+    /** Feedback al FALLAR (si falta, se usa `feedback`). */
+    feedbackIncorrect: z.string().max(2000).optional(),
     points: z.number().int().positive().optional(),
     /** Para SINGLE_CHOICE / MULTIPLE_CHOICE / TRUE_FALSE. Vacío para FILL_IN_BLANK. */
     options: z.array(createOptionSchema).max(10).optional(),

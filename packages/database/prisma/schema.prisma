@@ -1617,8 +1617,11 @@ model ModAssessmentsQuestion {
   quizId          String       @map("quiz_id") @db.Uuid
   type            QuestionType
   prompt          String
-  /// Texto de feedback opcional que se muestra tras corregir.
+  /// Texto de feedback que se muestra al ACERTAR (p.ej. "¡Increíble! …").
   feedback        String?
+  /// Texto de feedback que se muestra al FALLAR (p.ej. "¡Casi correcto! …").
+  /// Si es NULL, se cae a `feedback` para no dejar al alumno sin explicación.
+  feedbackIncorrect String? @map("feedback_incorrect")
   position        Int
   /// Puntos que vale la pregunta (default 1).
   points          Int          @default(1)

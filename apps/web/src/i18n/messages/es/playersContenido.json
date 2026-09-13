@@ -80,6 +80,8 @@
     "resultPendingReviewHint": "Tu intento contiene respuestas abiertas. Cuando el formador termine de corregir, vas a poder ver el resultado y, si aprobaste, la lección queda completada automáticamente.",
     "resultPassedHint": "La lección queda marcada como completada. Si era la última que te faltaba, tu certificado se está emitiendo en este momento.",
     "resultFailedHint": "Si el quiz lo permite, puedes reintentar. Repasa las lecciones anteriores y vuelve cuando estés listo.",
+    "feedbackCorrectTitle": "¡Increíble!",
+    "feedbackIncorrectTitle": "¡Casi correcto!",
     "backToQuiz": "Volver al quiz"
   },
   "lesson": {

@@ -35,4 +35,5 @@ export {
   type QuizAlumnoView,
   type AttemptSummary,
   type AttemptDetail,
+  type ReviewItem,
 } from './client';

@@ -87,6 +87,7 @@ export class AssessmentsService {
         type: dto.type,
         prompt: dto.prompt,
         feedback: dto.feedback ?? null,
+        feedbackIncorrect: dto.feedbackIncorrect ?? null,
         points: dto.points ?? 1,
         position,
         acceptedAnswers: dto.acceptedAnswers ?? [],
@@ -348,7 +349,23 @@ export class AssessmentsService {
       );
     }
 
-    return persisted;
+    // Revisión por pregunta para el alumno: qué feedback mostrar (el de acertar
+    // o el de fallar) según su respuesta. Solo si el quiz muestra feedback; si
+    // no hay feedbackIncorrect se cae al feedback general (nunca sin explicación).
+    const scoredByQ = new Map(result.perAnswer.map((s) => [s.questionId, s]));
+    const review = quiz.showFeedback
+      ? questions.map((q) => {
+          const correct = scoredByQ.get(q.id)?.isCorrect ?? false;
+          return {
+            questionId: q.id,
+            prompt: q.prompt,
+            isCorrect: correct,
+            feedback: correct ? q.feedback : (q.feedbackIncorrect ?? q.feedback),
+          };
+        })
+      : [];
+
+    return { ...persisted, review };
   }
 
   /**

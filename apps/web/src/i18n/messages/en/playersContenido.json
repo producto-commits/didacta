@@ -80,6 +80,8 @@
     "resultPendingReviewHint": "Your attempt contains open answers. Once the instructor finishes grading, you will be able to see the result and, if you passed, the lesson is completed automatically.",
     "resultPassedHint": "The lesson is marked as completed. If it was the last one left, your certificate is being issued right now.",
     "resultFailedHint": "If the quiz allows it, you can try again. Review the previous lessons and come back when you are ready.",
+    "feedbackCorrectTitle": "Amazing!",
+    "feedbackIncorrectTitle": "Almost there!",
     "backToQuiz": "Back to the quiz"
   },
   "lesson": {

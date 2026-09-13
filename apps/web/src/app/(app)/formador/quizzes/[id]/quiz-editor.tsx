@@ -475,6 +475,17 @@ function QuestionRow({
             </span>
           </p>
         ) : null}
+        {question.feedbackIncorrect ? (
+          <p className="mt-1.5 flex items-start gap-2 rounded-md bg-surface-2 px-3 py-2 text-xs text-text-muted">
+            <Icon name="sparkles" size={12} className="mt-0.5 shrink-0 text-warning-500" />
+            <span>
+              <strong className="font-semibold text-text">
+                {t('quizEditor.feedbackIncorrectTitle')}
+              </strong>{' '}
+              {question.feedbackIncorrect}
+            </span>
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -501,6 +512,7 @@ function NewQuestionForm({
   const [acceptedAnswersText, setAcceptedAnswersText] = useState('');
   const [points, setPoints] = useState('1');
   const [feedback, setFeedback] = useState('');
+  const [feedbackIncorrect, setFeedbackIncorrect] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -554,6 +566,7 @@ function NewQuestionForm({
         type,
         prompt,
         feedback: feedback || undefined,
+        feedbackIncorrect: feedbackIncorrect || undefined,
         points: Number(points),
         ...(type === 'FILL_IN_BLANK'
           ? { acceptedAnswers: acceptedAnswers ?? [] }
@@ -565,6 +578,7 @@ function NewQuestionForm({
       });
       setPrompt('');
       setFeedback('');
+      setFeedbackIncorrect('');
       setPoints('1');
       setAcceptedAnswersText('');
       setOptions(
@@ -745,6 +759,16 @@ function NewQuestionForm({
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
           placeholder={t('quizEditor.feedbackPlaceholder')}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="qfeedbackIncorrect">{t('quizEditor.feedbackIncorrectLabel')}</Label>
+        <Input
+          id="qfeedbackIncorrect"
+          value={feedbackIncorrect}
+          onChange={(e) => setFeedbackIncorrect(e.target.value)}
+          placeholder={t('quizEditor.feedbackIncorrectPlaceholder')}
         />
       </div>
 
