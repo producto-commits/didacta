@@ -134,10 +134,13 @@ export function LessonPlayer({
     try {
       const res = await retosApi.byLesson(lesson.id);
       setLessonReto(res.reto);
-      if (res.reto?.progress.complete) {
+      if (res.reto) {
+        // En modo reto el check verde significa "reto al 100 %", no "lección
+        // completada por el camino viejo": el estado sigue al motor.
+        const complete = res.reto.progress.complete;
         setCompleted((was) => {
-          if (!was) onCompleted?.();
-          return true;
+          if (!was && complete) onCompleted?.();
+          return complete;
         });
       }
       return res.reto;
@@ -419,20 +422,28 @@ export function LessonPlayer({
         </div>
       </header>
 
-      <div className="px-6 py-6">
-        <LessonContent
-          lesson={lesson}
-          resumeAt={initialResumePositionSec}
-          onTick={sendDelta}
-          onWatch={handleWatch}
-          watchEnabled={!completed && !preview}
-          onVideoProgress={setVideoPercent}
-          onNearEnd={maybeAutoComplete}
-          onEnded={lessonReto ? () => void onVideoEnded() : undefined}
-          enrollmentId={enrollmentId}
-          preview={preview}
-          onQuizPassed={() => setCompleted(true)}
-        />
+      <div
+        className={
+          lessonReto
+            ? 'grid gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]'
+            : 'px-6 py-6'
+        }
+      >
+        <div className="min-w-0">
+          <LessonContent
+            lesson={lesson}
+            resumeAt={initialResumePositionSec}
+            onTick={sendDelta}
+            onWatch={handleWatch}
+            watchEnabled={!completed && !preview}
+            onVideoProgress={setVideoPercent}
+            onNearEnd={maybeAutoComplete}
+            onEnded={lessonReto ? () => void onVideoEnded() : undefined}
+            enrollmentId={enrollmentId}
+            preview={preview}
+            onQuizPassed={() => setCompleted(true)}
+          />
+        </div>
 
         {lessonReto ? (
           <RetoPanel

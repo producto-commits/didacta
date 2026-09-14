@@ -130,7 +130,7 @@ function inputFrom(d: RetoDraft): RetoInput {
   };
 }
 
-export default function AdminRetosPage() {
+export function RetosAdminPanel() {
   const t = useTranslations('adminRetos');
   const tErrors = useTranslations('errors');
   const [retos, setRetos] = useState<Reto[] | null>(null);
@@ -188,7 +188,7 @@ export default function AdminRetosPage() {
     <section className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">{t('title')}</h1>
+          <h2 className="font-display text-xl font-bold tracking-tight">{t('title')}</h2>
           <p className="mt-1 max-w-3xl text-text-muted">{t('subtitle')}</p>
         </div>
         <Button type="button" variant="outline" onClick={() => setShowNew((v) => !v)}>

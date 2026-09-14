@@ -129,7 +129,12 @@
     "masPuntos": "+{points}",
     "puntos": "puntos",
     "respuestaEquipo": "Respuesta del equipo:",
-    "entregar": "Entregar"
+    "entregar": "Entregar",
+    "dropiTitulo": "Retos de Dropi Academy",
+    "dropiNota": "Ve el video, aprueba el quiz y completa las acciones de cada reto. Los puntos y la insignia llegan al 100 %.",
+    "dropiCompletado": "Completado",
+    "dropiIr": "Ir al reto →",
+    "dropiRepasar": "Repasar el reto →"
   },
   "mensajes": {
     "titulo": "Mensajes",

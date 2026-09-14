@@ -37,6 +37,7 @@ export interface RetoView {
   moduleKey: string;
   position: number;
   lessonId: string | null;
+  courseSlug: string | null;
   quizId: string | null;
   points: number;
   badge: { key: string; label: string; emoji: string | null } | null;
@@ -72,6 +73,17 @@ export interface MyRetos {
   retos: RetoWithProgress[];
 }
 
+export interface SubmitImageResult {
+  valid: boolean;
+  feedback: string;
+  canal: string | null;
+  count: number;
+  needed: number;
+  actionDone: boolean;
+  retoCompleted: boolean;
+  retoJustCompleted: boolean;
+}
+
 export interface EvaluateResult {
   progress: RetoProgress;
   completed: boolean;
@@ -94,6 +106,17 @@ export const retosApi = {
   },
   videoComplete(retoId: string): Promise<EvaluateResult> {
     return apiFetch(`${BASE}/${retoId}/video-complete`, { method: 'POST', body: '{}' }, bearer());
+  },
+  submitImage(
+    retoId: string,
+    actionKey: string,
+    body: { imageBase64: string; mimeType: string },
+  ): Promise<SubmitImageResult> {
+    return apiFetch(
+      `${BASE}/${retoId}/actions/${encodeURIComponent(actionKey)}/submit`,
+      { method: 'POST', body: JSON.stringify(body) },
+      bearer(),
+    );
   },
   actionDone(
     retoId: string,

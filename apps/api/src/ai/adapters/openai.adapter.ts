@@ -42,6 +42,8 @@ export function usesCompletionTokensParam(model: string): boolean {
 export class OpenAiAdapter implements AiProviderAdapter {
   readonly id: ProviderId = 'openai';
   readonly capabilities: ReadonlyArray<Capability> = ['chat', 'embed'];
+  /** gpt-4o / gpt-4o-mini / gpt-4.1 aceptan `image_url` en el contenido. */
+  readonly supportsVision: boolean = true;
 
   protected defaultBaseUrl = 'https://api.openai.com/v1';
   protected defaultChatModel = 'gpt-4o-mini';
@@ -65,7 +67,21 @@ export class OpenAiAdapter implements AiProviderAdapter {
       model,
       messages: [
         { role: 'system', content: input.system },
-        ...input.messages.map((m) => ({ role: m.role, content: m.content })),
+        ...input.messages.map((m) =>
+          m.images && m.images.length > 0
+            ? {
+                role: m.role,
+                // Contenido multimodal: texto + imágenes como data URLs.
+                content: [
+                  { type: 'text', text: m.content },
+                  ...m.images.map((img) => ({
+                    type: 'image_url',
+                    image_url: { url: img.dataUrl },
+                  })),
+                ],
+              }
+            : { role: m.role, content: m.content },
+        ),
       ],
       ...(nuevaApi
         ? { max_completion_tokens: limite }

@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RetosAdminPanel } from '@/components/admin/retos-admin-panel';
 import { Textarea } from '@/components/ui/textarea';
 import { UserChip } from '@/components/user-chip';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
@@ -34,6 +35,9 @@ import {
 /// los RETOS nacen vacíos a propósito — sus nombres y premios son decisiones de
 /// marca, no datos que pueda inventar el sistema.
 
+/** Retos manuales de gamificación: ocultos para Dropi (los reemplaza el motor de retos). */
+const SHOW_MANUAL_CHALLENGES = false;
+
 export default function AdminGamificacionPage() {
   const t = useTranslations('adminEngagement');
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +58,6 @@ export default function AdminGamificacionPage() {
       <Tabs defaultValue="retos">
         <TabsList>
           <TabsTrigger value="retos">{t('gamification.tabChallenges')}</TabsTrigger>
-          <TabsTrigger value="entregas">{t('gamification.tabSubmissions')}</TabsTrigger>
           <TabsTrigger value="niveles">{t('gamification.tabLevels')}</TabsTrigger>
           <TabsTrigger value="beneficios">{t('gamification.tabPerks')}</TabsTrigger>
           <TabsTrigger value="solicitudes">{t('gamification.tabRequests')}</TabsTrigger>
@@ -62,10 +65,17 @@ export default function AdminGamificacionPage() {
         </TabsList>
 
         <TabsContent value="retos">
-          <ChallengesPanel onError={setError} />
-        </TabsContent>
-        <TabsContent value="entregas">
-          <SubmissionsPanel onError={setError} />
+          {/* Retos de Dropi (lección + quiz + acciones validadas por la plataforma).
+              Los retos manuales de gamificación y sus entregas quedan ocultos a
+              petición de Dropi: ChallengesPanel/SubmissionsPanel siguen en el
+              fichero por si se reactivan. */}
+          <RetosAdminPanel />
+          {SHOW_MANUAL_CHALLENGES ? (
+            <>
+              <ChallengesPanel onError={setError} />
+              <SubmissionsPanel onError={setError} />
+            </>
+          ) : null}
         </TabsContent>
         <TabsContent value="niveles">
           <LevelsPanel onError={setError} />

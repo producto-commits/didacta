@@ -20,11 +20,22 @@ import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { ZodValidationPipe } from '../../auth/zod-validation.pipe';
 import type { SessionClaims } from '../../auth/token.service';
 import { RetosEngineService } from './retos-engine.service';
+import { RetosSubmissionsService } from './retos-submissions.service';
 
 const actionDoneSchema = z.object({
   answer: z.string().trim().max(500).optional(),
 });
 type ActionDoneDto = z.infer<typeof actionDoneSchema>;
+
+/** Captura para una acción AI_ANALYZE_IMAGE. Base64 (con o sin prefijo data:). */
+const submitImageSchema = z.object({
+  imageBase64: z
+    .string()
+    .min(16)
+    .max(9 * 1024 * 1024),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+});
+type SubmitImageDto = z.infer<typeof submitImageSchema>;
 
 /**
  * API del alumno para los retos (docs/retos/plan-retos.md §3.4):
@@ -38,7 +49,10 @@ type ActionDoneDto = z.infer<typeof actionDoneSchema>;
 @Controller('me/retos')
 @UseGuards(JwtAuthGuard)
 export class MeRetosController {
-  constructor(private readonly engine: RetosEngineService) {}
+  constructor(
+    private readonly engine: RetosEngineService,
+    private readonly submissions: RetosSubmissionsService,
+  ) {}
 
   private requireAuth(user: SessionClaims | undefined): SessionClaims {
     if (!user) throw new UnauthorizedException();
@@ -81,5 +95,20 @@ export class MeRetosController {
   ) {
     const u = this.requireAuth(user);
     return this.engine.markActionDone(u.tenantId, u.sub, id, actionKey, dto);
+  }
+
+  @Post(':id/actions/:actionKey/submit')
+  @ApiOperation({
+    summary:
+      'Entrega una captura para una acción de análisis con IA ("Reportar un reto"). La IA la valida; si es válida cuenta como entrega.',
+  })
+  submitImage(
+    @CurrentUser() user: SessionClaims | undefined,
+    @Param('id') id: string,
+    @Param('actionKey') actionKey: string,
+    @Body(new ZodValidationPipe(submitImageSchema)) dto: SubmitImageDto,
+  ) {
+    const u = this.requireAuth(user);
+    return this.submissions.submitImage(u.tenantId, u.sub, id, actionKey, dto);
   }
 }

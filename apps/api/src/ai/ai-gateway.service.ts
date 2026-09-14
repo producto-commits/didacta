@@ -54,6 +54,16 @@ export class AiGatewayService {
     if (!adapter.capabilities.includes('chat')) {
       throw new ProviderUnsupportedCapabilityError(config.provider, 'chat');
     }
+    if (
+      args.input.messages.some((m) => m.images && m.images.length > 0) &&
+      !adapter.supportsVision
+    ) {
+      throw new AiGatewayError(
+        'AI_PROVIDER_NO_VISION',
+        `${config.provider} no acepta imágenes (visión). Configura un provider con visión (p. ej. OpenAI gpt-4o-mini).`,
+        config.provider,
+      );
+    }
 
     const start = Date.now();
     try {

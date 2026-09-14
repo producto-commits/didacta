@@ -40,6 +40,8 @@ export interface RetoView {
   moduleKey: string;
   position: number;
   lessonId: string | null;
+  /** Slug del curso de la lección (para enlazar "Ir al reto" desde /retos). */
+  courseSlug: string | null;
   quizId: string | null;
   points: number;
   badge: { key: string; label: string; emoji: string | null } | null;
@@ -94,15 +96,24 @@ export class RetosEngineService {
       orderBy: { position: 'asc' },
       include: { actions: { orderBy: { position: 'asc' } } },
     });
+    await this.reconcileImplicitSteps(tenantId, userId, retos);
     const ids = retos.map((r) => r.id);
-    const [done, completions] = await Promise.all([
+    const lessonIds = retos.map((r) => r.lessonId).filter((x): x is string => Boolean(x));
+    const [done, completions, lessons] = await Promise.all([
       this.prisma.modRetosActionDone.findMany({ where: { tenantId, userId, retoId: { in: ids } } }),
       this.prisma.modRetosCompletion.findMany({ where: { tenantId, userId, retoId: { in: ids } } }),
+      lessonIds.length
+        ? this.prisma.modCoursesLesson.findMany({
+            where: { tenantId, id: { in: lessonIds } },
+            select: { id: true, module: { select: { course: { select: { slug: true } } } } },
+          })
+        : Promise.resolve([]),
     ]);
+    const slugByLesson = new Map(lessons.map((l) => [l.id, l.module.course.slug]));
     const items: RetoWithProgress[] = retos.map((r) => {
       const c = completions.find((x) => x.retoId === r.id);
       return {
-        reto: toView(r),
+        reto: toView(r, r.lessonId ? (slugByLesson.get(r.lessonId) ?? null) : null),
         progress: computeRetoProgress(
           r,
           done.filter((d) => d.retoId === r.id),
@@ -139,6 +150,82 @@ export class RetosEngineService {
         ? { id: next.reto.id, title: next.reto.title, lessonId: next.reto.lessonId }
         : null,
     };
+  }
+
+  /**
+   * Reconcilia los pasos implícitos con lo que ya consta en otros módulos:
+   * una lección completada en learning (p. ej. antes de existir el motor, o
+   * marcada por el formador) = video visto; un intento aprobado del quiz =
+   * quiz hecho. Sin esto, un alumno con la lección ya completada vería el
+   * check verde y a la vez "video pendiente" en el reto. Idempotente; solo
+   * escribe cuando falta la fila. Si al reconciliar el reto queda al 100 %,
+   * se evalúa (premia) como cualquier otro paso.
+   */
+  private async reconcileImplicitSteps(
+    tenantId: string,
+    userId: string,
+    retos: Array<{ id: string; lessonId: string | null; quizId: string | null }>,
+  ) {
+    if (retos.length === 0) return;
+    const ids = retos.map((r) => r.id);
+    const done = await this.prisma.modRetosActionDone.findMany({
+      where: { tenantId, userId, retoId: { in: ids }, actionKey: { in: [STEP_VIDEO, STEP_QUIZ] } },
+      select: { retoId: true, actionKey: true },
+    });
+    const has = (retoId: string, key: string) =>
+      done.some((d) => d.retoId === retoId && d.actionKey === key);
+
+    const lessonIds = retos
+      .filter((r) => r.lessonId && !has(r.id, STEP_VIDEO))
+      .map((r) => r.lessonId!);
+    const quizIds = retos.filter((r) => r.quizId && !has(r.id, STEP_QUIZ)).map((r) => r.quizId!);
+    if (lessonIds.length === 0 && quizIds.length === 0) return;
+
+    const [completedLessons, passedQuizzes] = await Promise.all([
+      lessonIds.length
+        ? this.prisma.modLearningProgress.findMany({
+            where: {
+              lessonId: { in: lessonIds },
+              completed: true,
+              enrollment: { tenantId, userId },
+            },
+            select: { lessonId: true },
+          })
+        : Promise.resolve([]),
+      quizIds.length
+        ? this.prisma.modAssessmentsAttempt.findMany({
+            where: { tenantId, userId, quizId: { in: quizIds }, passed: true },
+            select: { quizId: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const lessonDone = new Set(completedLessons.map((p) => p.lessonId));
+    const quizDone = new Set(passedQuizzes.map((a) => a.quizId));
+
+    const touched = new Set<string>();
+    for (const r of retos) {
+      if (r.lessonId && !has(r.id, STEP_VIDEO) && lessonDone.has(r.lessonId)) {
+        await this.upsertDone(tenantId, userId, r.id, STEP_VIDEO, {
+          set: 1,
+          meta: { reconciled: 'learning' },
+        });
+        touched.add(r.id);
+      }
+      if (r.quizId && !has(r.id, STEP_QUIZ) && quizDone.has(r.quizId)) {
+        await this.upsertDone(tenantId, userId, r.id, STEP_QUIZ, {
+          set: 1,
+          meta: { reconciled: 'assessments' },
+        });
+        touched.add(r.id);
+      }
+    }
+    for (const retoId of touched) {
+      try {
+        await this.evaluate(tenantId, userId, retoId);
+      } catch (err) {
+        this.logger.warn(`Reconciliación: fallo evaluando ${retoId}: ${String(err)}`);
+      }
+    }
   }
 
   // ─── Pasos hechos ─────────────────────────────────────────────────────
@@ -451,29 +538,32 @@ export class RetosEngineService {
   }
 }
 
-function toView(r: {
-  id: string;
-  key: string;
-  title: string;
-  description: string | null;
-  moduleKey: string;
-  position: number;
-  lessonId: string | null;
-  quizId: string | null;
-  points: number;
-  badgeKey: string | null;
-  badgeLabel: string | null;
-  badgeEmoji: string | null;
-  completionMessage: string | null;
-  actions: Array<{
+function toView(
+  r: {
+    id: string;
     key: string;
-    type: string;
     title: string;
     description: string | null;
-    required: boolean;
-    config: unknown;
-  }>;
-}): RetoView {
+    moduleKey: string;
+    position: number;
+    lessonId: string | null;
+    quizId: string | null;
+    points: number;
+    badgeKey: string | null;
+    badgeLabel: string | null;
+    badgeEmoji: string | null;
+    completionMessage: string | null;
+    actions: Array<{
+      key: string;
+      type: string;
+      title: string;
+      description: string | null;
+      required: boolean;
+      config: unknown;
+    }>;
+  },
+  courseSlug: string | null = null,
+): RetoView {
   return {
     id: r.id,
     key: r.key,
@@ -482,6 +572,7 @@ function toView(r: {
     moduleKey: r.moduleKey,
     position: r.position,
     lessonId: r.lessonId,
+    courseSlug,
     quizId: r.quizId,
     points: r.points,
     badge:

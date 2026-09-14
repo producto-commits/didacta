@@ -19,6 +19,8 @@ import {
   type MyPerkView,
   type Standing,
 } from '@/modules/gamification';
+import { DropiRetosSection } from '@/components/dropi-retos-section';
+import { retosApi, type MyRetos } from '@/lib/retos';
 
 /// Retos y puntos (vista del miembro). La pantalla se lee de arriba abajo como
 /// una respuesta a "¿y esto para qué me sirve?": qué te falta para el siguiente
@@ -62,22 +64,27 @@ export default function RetosPage() {
   const [levels, setLevels] = useState<LevelView[]>([]);
   const [perks, setPerks] = useState<MyPerkView[]>([]);
   const [standing, setStanding] = useState<Standing | null>(null);
+  // Retos de Dropi (motor de retos). Si el módulo tiene retos definidos, la
+  // página los muestra a ellos y NO los retos manuales de gamificación.
+  const [dropi, setDropi] = useState<MyRetos | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [list, levelList, mine, myPerks] = await Promise.all([
+      const [list, levelList, mine, myPerks, dropiRetos] = await Promise.all([
         gamificationApi.listChallenges(),
         gamificationApi.listLevels(),
         gamificationApi.myStanding('all'),
         gamificationApi.myPerks(),
+        retosApi.mine().catch(() => null),
       ]);
       setChallenges(list);
       setLevels(levelList);
       setStanding(mine);
       setPerks(myPerks);
+      setDropi(dropiRetos && dropiRetos.retos.length > 0 ? dropiRetos : null);
     } catch {
       setError(t('retos.errorCarga'));
     } finally {
@@ -108,10 +115,16 @@ export default function RetosPage() {
   const pendientes = useMemo(() => challenges.filter((c) => !c.mySubmission), [challenges]);
   /** El más barato que te llevaría al siguiente nivel; si ninguno llega, el más barato. */
   const atajo = useMemo(() => {
-    if (pendientes.length === 0) return null;
+    // Con retos de Dropi no hay "entrega rápida" manual: el atajo es la lección.
+    if (dropi || pendientes.length === 0) return null;
     const porPuntos = [...pendientes].sort((a, b) => a.points - b.points);
     return porPuntos.find((c) => c.points >= gap) ?? porPuntos[0]!;
-  }, [pendientes, gap]);
+  }, [pendientes, gap, dropi]);
+  /** Cifras de la cabecera: con retos de Dropi salen de su progreso. */
+  const dropiPendientes = useMemo(
+    () => (dropi ? dropi.retos.filter((r) => !r.progress.complete) : []),
+    [dropi],
+  );
 
   return (
     <div className="space-y-8">
@@ -124,10 +137,16 @@ export default function RetosPage() {
         gap={gap}
         atajo={atajo}
         siguienteBeneficio={perks.find((p) => p.levelId === nextLevel?.id)?.title ?? null}
-        retosAbiertos={pendientes.length}
-        puntosDisponibles={pendientes.reduce((sum, c) => sum + c.points, 0)}
+        retosAbiertos={dropi ? dropiPendientes.length : pendientes.length}
+        puntosDisponibles={
+          dropi
+            ? dropiPendientes.reduce((sum, r) => sum + r.reto.points, 0)
+            : pendientes.reduce((sum, c) => sum + c.points, 0)
+        }
         onSubmitted={load}
       />
+
+      {dropi ? <DropiRetosSection data={dropi} onRefresh={() => void load()} /> : null}
 
       {ordered.length > 0 ? (
         <Section title={t('retos.escaleraTitulo')} note={t('retos.escaleraNota')}>
@@ -165,26 +184,28 @@ export default function RetosPage() {
         </Section>
       ) : null}
 
-      <Section title={t('retos.abiertosTitulo')} note={t('retos.abiertosNota')}>
-        {loading ? (
-          <p className="text-sm text-text-muted">{t('retos.cargando')}</p>
-        ) : error ? (
-          <div className="rounded-xl border border-border bg-surface p-4 text-sm text-text-muted">
-            {error}
-          </div>
-        ) : challenges.length === 0 ? (
-          <div className="rounded-xl border border-border bg-surface p-12 text-center">
-            <p className="text-base font-semibold text-text">{t('retos.vacioTitulo')}</p>
-            <p className="mt-1 text-sm text-text-muted">{t('retos.vacioNota')}</p>
-          </div>
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-3">
-            {challenges.map((challenge) => (
-              <ChallengeCard key={challenge.id} challenge={challenge} onDone={load} />
-            ))}
-          </div>
-        )}
-      </Section>
+      {dropi ? null : (
+        <Section title={t('retos.abiertosTitulo')} note={t('retos.abiertosNota')}>
+          {loading ? (
+            <p className="text-sm text-text-muted">{t('retos.cargando')}</p>
+          ) : error ? (
+            <div className="rounded-xl border border-border bg-surface p-4 text-sm text-text-muted">
+              {error}
+            </div>
+          ) : challenges.length === 0 ? (
+            <div className="rounded-xl border border-border bg-surface p-12 text-center">
+              <p className="text-base font-semibold text-text">{t('retos.vacioTitulo')}</p>
+              <p className="mt-1 text-sm text-text-muted">{t('retos.vacioNota')}</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-3">
+              {challenges.map((challenge) => (
+                <ChallengeCard key={challenge.id} challenge={challenge} onDone={load} />
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
     </div>
   );
 }

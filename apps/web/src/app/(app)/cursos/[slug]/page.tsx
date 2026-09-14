@@ -96,7 +96,16 @@ export default function CourseAlumnoPage() {
       const found = enrollments.find((e) => e.courseId === detail.id && e.status !== 'CANCELLED');
       setEnrollment(found ?? null);
       const firstLesson = detail.modules.flatMap((m) => m.lessons)[0];
-      setActiveLessonId((current) => current ?? firstLesson?.id ?? null);
+      // `?leccion=<id>` abre esa lección directamente (lo usan "Ir al reto" en
+      // /retos y el asistente de retos). Si no existe en el curso, cae a la 1ª.
+      const wanted =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('leccion')
+          : null;
+      const exists = wanted && detail.modules.some((m) => m.lessons.some((l) => l.id === wanted));
+      setActiveLessonId(
+        (current) => current ?? (exists ? wanted : null) ?? firstLesson?.id ?? null,
+      );
 
       // Hidratamos el map de lecciones completadas desde el backend para
       // que al recargar la página o entrar de nuevo el alumno vea

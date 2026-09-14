@@ -35,6 +35,13 @@ export type Capability = 'chat' | 'embed';
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  /**
+   * Imágenes adjuntas al mensaje (visión), como data URLs
+   * (`data:image/jpeg;base64,…`). Solo los adapters con `supportsVision`
+   * las aceptan; el gateway rechaza la llamada si el provider no puede.
+   * Lo usa el análisis de imagen de los retos (docs/retos/plan-retos.md §3.2).
+   */
+  images?: Array<{ dataUrl: string }>;
 }
 
 export interface ChatCompletionInput {
@@ -91,6 +98,8 @@ export interface AiProviderAdapter {
   readonly id: ProviderId;
   /** Capabilities soportadas. Algunos providers solo chat (Groq), otros solo embed (Voyage). */
   readonly capabilities: ReadonlyArray<Capability>;
+  /** True si `chat` acepta `ChatMessage.images` (modelos con visión). */
+  readonly supportsVision?: boolean;
 
   /** Llamada chat. Lanza si el adapter no soporta `chat`. */
   chat(input: ChatCompletionInput, config: ResolvedProviderConfig): Promise<ChatCompletionResult>;

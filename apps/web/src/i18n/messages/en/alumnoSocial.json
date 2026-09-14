@@ -129,7 +129,12 @@
     "masPuntos": "+{points}",
     "puntos": "points",
     "respuestaEquipo": "Team's response:",
-    "entregar": "Submit"
+    "entregar": "Submit",
+    "dropiTitulo": "Dropi Academy challenges",
+    "dropiNota": "Watch the video, pass the quiz and complete each challenge's actions. Points and badge arrive at 100%.",
+    "dropiCompletado": "Completed",
+    "dropiIr": "Go to challenge →",
+    "dropiRepasar": "Review challenge →"
   },
   "mensajes": {
     "titulo": "Messages",

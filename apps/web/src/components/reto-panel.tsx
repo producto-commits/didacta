@@ -10,6 +10,7 @@ import { useTranslations } from 'next-intl';
 import { AiTutorPanel } from '@/components/ai-tutor-panel';
 import { ProfileQuestion } from '@/components/profile-question';
 import { QuizPlayer } from '@/components/quiz-player';
+import { RetoImageSubmit } from '@/components/reto-image-submit';
 import { Button } from '@/components/ui/button';
 import { ApiHttpError } from '@/lib/api-client';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
@@ -77,11 +78,11 @@ export function RetoPanel({
     }
   }
 
-  const stepLabel = (s: StepProgress) =>
-    s.type === 'VIDEO' ? t('reto.stepVideo') : s.type === 'QUIZ' ? t('reto.stepQuiz') : s.title;
-
   return (
-    <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_minmax(260px,320px)]">
+    <div className="flex flex-col gap-6">
+      {/* 1) Widget de progreso del reto y del módulo (el del spec). */}
+      <RetoProgressWidget data={data} t={t} onSelectLesson={onSelectLesson} />
+
       <div className="space-y-6">
         {/* Quiz embebido: su aprobación llega al motor por el bus (attempt.passed). */}
         {reto.quizId && enrollmentId ? (
@@ -171,18 +172,21 @@ export function RetoPanel({
               ) : null}
 
               {a.type === 'AI_ANALYZE_IMAGE' ? (
-                <div className="mt-3 space-y-2">
-                  {Array.isArray(cfg['steps']) ? (
-                    <ol className="list-decimal space-y-1 pl-5 text-sm text-text">
-                      {(cfg['steps'] as unknown[])
-                        .filter((x): x is string => typeof x === 'string')
-                        .map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                    </ol>
-                  ) : null}
-                  {!done ? <p className="text-xs text-text-muted">{t('reto.aiPending')}</p> : null}
-                </div>
+                <RetoImageSubmit
+                  retoId={reto.id}
+                  actionKey={a.key}
+                  steps={
+                    Array.isArray(cfg['steps'])
+                      ? (cfg['steps'] as unknown[]).filter(
+                          (x): x is string => typeof x === 'string',
+                        )
+                      : []
+                  }
+                  count={step?.count ?? 0}
+                  needed={step?.needed ?? 1}
+                  done={done}
+                  onSubmitted={() => void onRefresh()}
+                />
               ) : null}
 
               {a.type === 'DB_ORDER_CREATED' || a.type === 'DB_ORDER_DELIVERED' ? (
@@ -201,101 +205,115 @@ export function RetoPanel({
           </div>
         ) : null}
       </div>
-
-      {/* Widget de progreso del reto y del módulo (el del spec). */}
-      <aside className="h-fit rounded-card border border-border bg-surface p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-          {t('reto.label', { position: reto.position })}
-        </p>
-        <h3 className="mt-1 font-display text-lg font-bold text-text">{reto.title}</h3>
-
-        <h4 className="mt-4 text-sm font-semibold text-text">{t('reto.progressTitle')}</h4>
-        <ul className="mt-2 space-y-1.5 text-sm">
-          {progress.steps.map((s) => (
-            <li key={s.key} className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={
-                    s.done
-                      ? 'inline-grid h-5 w-5 place-items-center rounded-full bg-success-500 text-[11px] text-white'
-                      : 'inline-grid h-5 w-5 place-items-center rounded-full bg-surface-3 text-[11px] text-text-disabled'
-                  }
-                >
-                  {s.done ? '✓' : '·'}
-                </span>
-                <span className={s.done ? 'text-text' : 'text-text-muted'}>
-                  {stepLabel(s)}
-                  {!s.required ? <span className="text-xs"> · {t('reto.optional')}</span> : null}
-                </span>
-              </span>
-              <span className="text-xs text-text-muted tabular-nums">
-                {s.needed > 1
-                  ? t('reto.stepCount', { count: s.count, needed: s.needed })
-                  : s.done
-                    ? t('reto.stepDone')
-                    : t('reto.stepPending')}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        <Meter label={t('reto.retoPercent')} percent={progress.percent} className="mt-4" />
-        <Meter label={t('reto.modulePercent')} percent={data.modulePercent} className="mt-3" />
-        <p className="mt-1 text-xs text-text-muted tabular-nums">
-          {t('reto.moduleRetos', { completed: data.moduleCompleted, total: data.moduleTotal })}
-        </p>
-
-        {progress.complete ? (
-          <div className="mt-4 rounded-lg border border-success-200 bg-success-50 p-3 text-sm">
-            <p className="font-semibold text-success-700">
-              {data.moduleCompleted >= data.moduleTotal && data.moduleTotal > 0
-                ? t('reto.moduleDone')
-                : t('reto.completedTitle')}
-            </p>
-            {reto.completionMessage ? (
-              <p className="mt-1 text-text">{reto.completionMessage}</p>
-            ) : null}
-            <p className="mt-2 text-text">
-              ⭐ {t('reto.rewardPoints', { points: reto.points })}
-              {reto.badge ? (
-                <>
-                  {' · '}
-                  {reto.badge.emoji ? <span aria-hidden="true">{reto.badge.emoji} </span> : null}
-                  {reto.badge.label}
-                </>
-              ) : null}
-            </p>
-            {data.nextReto?.lessonId && onSelectLesson ? (
-              <Button
-                type="button"
-                size="sm"
-                className="mt-3"
-                onClick={() => onSelectLesson(data.nextReto!.lessonId!)}
-              >
-                {t('reto.nextReto')}
-              </Button>
-            ) : null}
-          </div>
-        ) : (
-          <div className="mt-4 rounded-lg bg-surface-2 p-3 text-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-              {t('reto.rewardTitle')}
-            </p>
-            <p className="mt-1 text-text">
-              ⭐ {t('reto.rewardPoints', { points: reto.points })}
-              {reto.badge ? (
-                <>
-                  {' · '}
-                  {reto.badge.emoji ? <span aria-hidden="true">{reto.badge.emoji} </span> : null}
-                  {reto.badge.label}
-                </>
-              ) : null}
-            </p>
-          </div>
-        )}
-      </aside>
     </div>
+  );
+}
+
+function RetoProgressWidget({
+  data,
+  t,
+  onSelectLesson,
+}: {
+  data: LessonReto;
+  t: ReturnType<typeof useTranslations<'playersContenido'>>;
+  onSelectLesson?: (lessonId: string) => void;
+}) {
+  const { reto, progress } = data;
+  const stepLabel = (s: StepProgress) =>
+    s.type === 'VIDEO' ? t('reto.stepVideo') : s.type === 'QUIZ' ? t('reto.stepQuiz') : s.title;
+  return (
+    <aside className="rounded-card border border-border bg-surface p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+        {t('reto.label', { position: reto.position })}
+      </p>
+      <h3 className="mt-1 font-display text-lg font-bold text-text">{reto.title}</h3>
+
+      <h4 className="mt-4 text-sm font-semibold text-text">{t('reto.progressTitle')}</h4>
+      <ul className="mt-2 space-y-1.5 text-sm">
+        {progress.steps.map((s) => (
+          <li key={s.key} className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={
+                  s.done
+                    ? 'inline-grid h-5 w-5 place-items-center rounded-full bg-success-500 text-[11px] text-white'
+                    : 'inline-grid h-5 w-5 place-items-center rounded-full bg-surface-3 text-[11px] text-text-disabled'
+                }
+              >
+                {s.done ? '✓' : '·'}
+              </span>
+              <span className={s.done ? 'text-text' : 'text-text-muted'}>
+                {stepLabel(s)}
+                {!s.required ? <span className="text-xs"> · {t('reto.optional')}</span> : null}
+              </span>
+            </span>
+            <span className="text-xs text-text-muted tabular-nums">
+              {s.needed > 1
+                ? t('reto.stepCount', { count: s.count, needed: s.needed })
+                : s.done
+                  ? t('reto.stepDone')
+                  : t('reto.stepPending')}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <Meter label={t('reto.retoPercent')} percent={progress.percent} className="mt-4" />
+      <Meter label={t('reto.modulePercent')} percent={data.modulePercent} className="mt-3" />
+      <p className="mt-1 text-xs text-text-muted tabular-nums">
+        {t('reto.moduleRetos', { completed: data.moduleCompleted, total: data.moduleTotal })}
+      </p>
+
+      {progress.complete ? (
+        <div className="mt-4 rounded-lg border border-success-200 bg-success-50 p-3 text-sm">
+          <p className="font-semibold text-success-700">
+            {data.moduleCompleted >= data.moduleTotal && data.moduleTotal > 0
+              ? t('reto.moduleDone')
+              : t('reto.completedTitle')}
+          </p>
+          {reto.completionMessage ? (
+            <p className="mt-1 text-text">{reto.completionMessage}</p>
+          ) : null}
+          <p className="mt-2 text-text">
+            ⭐ {t('reto.rewardPoints', { points: reto.points })}
+            {reto.badge ? (
+              <>
+                {' · '}
+                {reto.badge.emoji ? <span aria-hidden="true">{reto.badge.emoji} </span> : null}
+                {reto.badge.label}
+              </>
+            ) : null}
+          </p>
+          {data.nextReto?.lessonId && onSelectLesson ? (
+            <Button
+              type="button"
+              size="sm"
+              className="mt-3"
+              onClick={() => onSelectLesson(data.nextReto!.lessonId!)}
+            >
+              {t('reto.nextReto')}
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg bg-surface-2 p-3 text-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+            {t('reto.rewardTitle')}
+          </p>
+          <p className="mt-1 text-text">
+            ⭐ {t('reto.rewardPoints', { points: reto.points })}
+            {reto.badge ? (
+              <>
+                {' · '}
+                {reto.badge.emoji ? <span aria-hidden="true">{reto.badge.emoji} </span> : null}
+                {reto.badge.label}
+              </>
+            ) : null}
+          </p>
+        </div>
+      )}
+    </aside>
   );
 }
 

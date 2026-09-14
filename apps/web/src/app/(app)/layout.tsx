@@ -18,7 +18,8 @@ import { SupportAccessBanner } from '@/components/support-access-banner';
 import { ReferralsPromoButton } from '@/components/referrals-promo-button';
 import { NotificationsProvider } from '@/components/notifications-provider';
 import { NotificationsToaster } from '@/components/notifications-toaster';
-import { FloatingChat, MessagingProvider } from '@/modules/messaging';
+import { MessagingProvider } from '@/modules/messaging';
+import { RetosAssistant } from '@/components/retos-assistant';
 import { hayPaseDeBienvenida, onboardingApi } from '@/lib/academy';
 import { authStorage, type StoredSession } from '@/lib/auth-storage';
 import { clearIntendedPath, rememberIntendedPath } from '@/lib/post-login-redirect';
@@ -517,7 +518,10 @@ function Shell({
           {/* Barra inferior de pestañas — solo móvil (<lg). */}
           <MobileTabBar pathname={pathname ?? null} onOpenMenu={() => setMobileNavOpen(true)} />
         </div>
-        <FloatingChat />
+        {/* Botón flotante: asistente de retos (Hablar con Dana / Reportar un reto).
+            Reemplaza al chat flotante de Mensajes a petición de Dropi; Mensajes
+            sigue accesible desde el propio panel y desde el menú. */}
+        <RetosAssistant />
         <NotificationsToaster />
       </MessagingProvider>
     </NotificationsProvider>
