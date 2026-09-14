@@ -140,6 +140,32 @@
       "AI_PROVIDER_UNAVAILABLE": "El proveedor de IA no respondió. Prueba de nuevo en un momento."
     }
   },
+  "reto": {
+    "label": "Reto {position}",
+    "progressTitle": "Tu progreso",
+    "stepVideo": "Ver el video al 100 %",
+    "stepQuiz": "Aprobar el quiz",
+    "stepDone": "hecho",
+    "stepPending": "pendiente",
+    "stepCount": "{count} de {needed}",
+    "optional": "opcional",
+    "retoPercent": "Progreso del reto",
+    "modulePercent": "Módulo completo",
+    "moduleRetos": "{completed} de {total} retos",
+    "rewardTitle": "Al completar el reto",
+    "rewardPoints": "+{points} puntos",
+    "completedTitle": "¡Reto completado!",
+    "nextReto": "Ir al siguiente reto →",
+    "moduleDone": "¡Módulo completado! 🏆",
+    "quizTitle": "Evaluación",
+    "confirmAction": "Confirmar que lo hice",
+    "confirming": "Guardando…",
+    "aiSteps": "Pasos",
+    "aiPending": "Esta acción se entrega desde el asistente de retos (próximamente).",
+    "dbPending": "Se valida automáticamente con tus datos de Dropi.",
+    "videoHint": "Termina el video para completar este paso.",
+    "errorLoad": "No pudimos cargar tu progreso del reto."
+  },
   "claseEmbed": {
     "countdownTomorrow": "Mañana",
     "countdownDays": "{days, plural, other {En # días}}",

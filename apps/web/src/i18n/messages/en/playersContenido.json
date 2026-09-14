@@ -140,6 +140,32 @@
       "AI_PROVIDER_UNAVAILABLE": "The AI provider did not respond. Try again in a moment."
     }
   },
+  "reto": {
+    "label": "Challenge {position}",
+    "progressTitle": "Your progress",
+    "stepVideo": "Watch the video to 100%",
+    "stepQuiz": "Pass the quiz",
+    "stepDone": "done",
+    "stepPending": "pending",
+    "stepCount": "{count} of {needed}",
+    "optional": "optional",
+    "retoPercent": "Challenge progress",
+    "modulePercent": "Module complete",
+    "moduleRetos": "{completed} of {total} challenges",
+    "rewardTitle": "On completing the challenge",
+    "rewardPoints": "+{points} points",
+    "completedTitle": "Challenge completed!",
+    "nextReto": "Go to the next challenge →",
+    "moduleDone": "Module completed! 🏆",
+    "quizTitle": "Assessment",
+    "confirmAction": "Confirm I did it",
+    "confirming": "Saving…",
+    "aiSteps": "Steps",
+    "aiPending": "This action is submitted from the challenges assistant (coming soon).",
+    "dbPending": "Validated automatically with your Dropi data.",
+    "videoHint": "Finish the video to complete this step.",
+    "errorLoad": "We could not load your challenge progress."
+  },
   "claseEmbed": {
     "countdownTomorrow": "Tomorrow",
     "countdownDays": "{days, plural, other {In # days}}",

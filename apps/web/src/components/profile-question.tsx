@@ -25,9 +25,12 @@ export interface ProfileQuestionSpec {
 export function ProfileQuestion({
   spec,
   preview,
+  onAnswered,
 }: {
   spec: ProfileQuestionSpec;
   preview?: boolean;
+  /** Se dispara tras guardar la respuesta (el reto lo usa para marcar la acción hecha). */
+  onAnswered?: (value: string) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -68,6 +71,7 @@ export function ProfileQuestion({
     try {
       await meApi.saveProfileAnswer(token, spec.key, value);
       setSaved(true);
+      onAnswered?.(value);
     } catch {
       /* best-effort: no bloquea el reto */
     } finally {

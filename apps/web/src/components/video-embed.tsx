@@ -6,7 +6,7 @@
  */
 
 import { useTranslations } from 'next-intl';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   bunnyEmbedUrl,
   formatSeconds,
@@ -17,6 +17,13 @@ import {
   youTubeEmbedUrl,
 } from '@/lib/video';
 import { useBunnyWatch, type WatchReport } from '@/lib/use-bunny-watch';
+import {
+  listeningMessage,
+  parseYouTubeInfo,
+  withJsApi,
+  YOUTUBE_ORIGIN,
+  YT_STATE_ENDED,
+} from '@/lib/youtube-watch';
 
 interface Props {
   url: string;
@@ -57,6 +64,12 @@ interface Props {
    * la lección se auto-marca como completada (estilo Skool). No aplica a YouTube.
    */
   onNearEnd?: () => void;
+  /**
+   * El vídeo llegó al FINAL (100 % real). Self-hosted vía `ended`; YouTube vía
+   * postMessage (playerState 0). Es lo que exige un reto para dar el video por
+   * visto. Bunny no lo emite (usa `onWatch.ended`).
+   */
+  onEnded?: () => void;
 }
 
 /**
@@ -77,6 +90,7 @@ export function VideoEmbed({
   poster,
   onVideoProgress,
   onNearEnd,
+  onEnded,
 }: Props) {
   const t = useTranslations('playersContenido');
   // Tracking del <video> self-hosted: posición máxima vista, delta reproducido
@@ -90,9 +104,59 @@ export function VideoEmbed({
   const nonceRef = useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const bunnyIframeRef = useRef<HTMLIFrameElement>(null);
+  const ytIframeRef = useRef<HTMLIFrameElement>(null);
 
   const bunny = parseBunny(url);
   const ytId = bunny ? null : parseYouTubeId(url);
+
+  // YouTube: visionado REAL por postMessage con el iframe (`enablejsapi=1`),
+  // sin cargar el script de YouTube (la CSP no lo permite). Tras el handshake
+  // `listening`, el player manda `infoDelivery` con currentTime/duration y
+  // playerState (0 = terminado). Ver lib/youtube-watch.ts.
+  const ytTrack = Boolean(ytId && watchEnabled && (onVideoProgress || onNearEnd || onEnded));
+  useEffect(() => {
+    if (!ytTrack) return;
+    const iframe = ytIframeRef.current;
+    if (!iframe) return;
+    let maxTime = 0;
+    let duration = 0;
+    let endedFired = false;
+    const send = (msg: string) => iframe.contentWindow?.postMessage(msg, YOUTUBE_ORIGIN);
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== YOUTUBE_ORIGIN || e.source !== iframe.contentWindow) return;
+      const info = parseYouTubeInfo(e.data);
+      if (!info) return;
+      if (info.duration) duration = info.duration;
+      if (typeof info.currentTime === 'number') maxTime = Math.max(maxTime, info.currentTime);
+      if (duration > 0) {
+        onVideoProgress?.(Math.min(100, (maxTime / duration) * 100));
+        if (!nearEndFiredRef.current && duration > 30 && maxTime >= duration - 30) {
+          nearEndFiredRef.current = true;
+          onNearEnd?.();
+        }
+      }
+      if (info.playerState === YT_STATE_ENDED && !endedFired) {
+        endedFired = true;
+        onVideoProgress?.(100);
+        onEnded?.();
+      }
+    };
+    window.addEventListener('message', onMessage);
+    const handshake = () => send(listeningMessage());
+    iframe.addEventListener('load', handshake);
+    handshake();
+    // El iframe puede no estar escuchando aún: se repite el handshake un rato.
+    const retry = window.setInterval(handshake, 1500);
+    const stopRetry = window.setTimeout(() => window.clearInterval(retry), 15000);
+    return () => {
+      window.removeEventListener('message', onMessage);
+      iframe.removeEventListener('load', handshake);
+      window.clearInterval(retry);
+      window.clearTimeout(stopRetry);
+    };
+    // Los callbacks se leen por cierre a propósito; el disparador es el iframe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ytTrack, ytId, seek?.nonce]);
 
   // Medición de visionado real (solo Bunny por ahora). El hook no hace nada si
   // no hay callback, está deshabilitado o no es un iframe de Bunny.
@@ -149,10 +213,14 @@ export function VideoEmbed({
   } else if (ytId) {
     const start = seek?.seconds ?? parseYouTubeStartSeconds(url);
     const base = youTubeEmbedUrl(ytId, start ? { startSeconds: start } : {});
-    const src = seek ? `${base}&autoplay=1` : base;
+    const plain = seek ? `${base}&autoplay=1` : base;
+    const src = ytTrack
+      ? withJsApi(plain, typeof window !== 'undefined' ? window.location.origin : '')
+      : plain;
     player = (
       <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
         <iframe
+          ref={ytIframeRef}
           key={seek?.nonce ?? 'init'}
           src={src}
           title={title}
@@ -227,6 +295,7 @@ export function VideoEmbed({
         onEnded={(e) => {
           const v = e.currentTarget;
           onVideoProgress?.(100);
+          onEnded?.();
           if (watchEnabled) {
             onWatch?.({
               positionSeconds: v.duration || v.currentTime,

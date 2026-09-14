@@ -692,6 +692,7 @@ export default function CourseAlumnoPage() {
                 }}
                 courseId={course.id}
                 enrollmentId={enrollment.id}
+                onSelectLesson={setActiveLessonId}
                 initialResumePositionSec={resumeByLesson[activeLesson.id] ?? 0}
                 initialCompleted={Boolean(progressByLesson[activeLesson.id])}
                 onPosition={setLessonPosition}

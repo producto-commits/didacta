@@ -6,6 +6,7 @@
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import type { DomainEvent } from '@didacta/core-kernel';
 import { Logger as PinoLogger } from 'nestjs-pino';
+import { PrismaService } from '../../prisma/prisma.service';
 import { ModuleContextFactory } from '../module-context.factory';
 import { ModuleRegistryService } from '../module-registry.service';
 
@@ -39,6 +40,7 @@ export class AssessmentsLearningBridge implements OnModuleInit {
     private readonly registry: ModuleRegistryService,
     private readonly factory: ModuleContextFactory,
     private readonly logger: PinoLogger,
+    private readonly prisma: PrismaService,
   ) {}
 
   onModuleInit(): void {
@@ -57,6 +59,21 @@ export class AssessmentsLearningBridge implements OnModuleInit {
       this.logger.debug(
         { attemptId, quizId, tenantId },
         'attempt.passed sin enrollmentId/lessonId — nada que enlazar',
+      );
+      return;
+    }
+
+    // Quiz de un RETO: la lección la cierra el motor de retos cuando TODAS las
+    // acciones están hechas (video + quiz + …). Cerrarla aquí al aprobar el
+    // quiz la completaría antes de tiempo (docs/retos/plan-retos.md §3.3).
+    const reto = await this.prisma.modRetosReto.findFirst({
+      where: { tenantId, quizId },
+      select: { id: true },
+    });
+    if (reto) {
+      this.logger.debug(
+        { attemptId, quizId, retoId: reto.id, tenantId },
+        'attempt.passed de un quiz de reto — lo procesa el motor de retos',
       );
       return;
     }

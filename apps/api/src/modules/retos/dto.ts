@@ -40,8 +40,13 @@ export type CreateRetoDto = z.infer<typeof createRetoSchema>;
 export const updateRetoSchema = createRetoSchema.partial();
 export type UpdateRetoDto = z.infer<typeof updateRetoSchema>;
 
+/** `video` y `quiz` son los pasos implícitos del reto: no pueden ser acciones. */
+const actionKeySchema = keySchema.refine((k) => k !== 'video' && k !== 'quiz', {
+  message: 'Las claves "video" y "quiz" están reservadas',
+});
+
 export const createActionSchema = z.object({
-  key: keySchema,
+  key: actionKeySchema,
   type: retoActionTypeSchema,
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(2000).optional(),

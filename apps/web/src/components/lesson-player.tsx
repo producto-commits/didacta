@@ -16,6 +16,8 @@ import { ApiHttpError } from '@/lib/api-client';
 import { authStorage } from '@/lib/auth-storage';
 import { meApi } from '@/lib/me';
 import { parseAiAction } from '@/lib/reto-ai-action';
+import { RetoPanel } from '@/components/reto-panel';
+import { retosApi, type LessonReto } from '@/lib/retos';
 import type { CourseLesson } from '@/lib/courses';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
 import { labelOr } from '@/lib/i18n/labels';
@@ -64,6 +66,8 @@ interface Props {
    * muestran un aviso en su lugar.
    */
   preview?: boolean;
+  /** Navegar a otra lección (CTA "Ir al siguiente reto" del panel del reto). */
+  onSelectLesson?: (lessonId: string) => void;
 }
 
 // Cada cuánto reportamos tiempo visto al backend. Subido de 30→60s para
@@ -104,6 +108,7 @@ export function LessonPlayer({
   onUncompleted,
   onPosition,
   preview = false,
+  onSelectLesson,
 }: Props) {
   const t = useTranslations('playersContenido');
   // Acción con IA del reto (Retos 2/3): se completa con ≥1 consulta a Danna.
@@ -118,6 +123,48 @@ export function LessonPlayer({
   // % del vídeo self-hosted visto (para la barra de progreso de la lección).
   const [videoPercent, setVideoPercent] = useState(initialCompleted ? 100 : 0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // MODO RETO (docs/retos/plan-retos.md §3.4): si la lección es la página de un
+  // reto, el player NO completa la lección por su cuenta. Reporta el video al
+  // 100 % real como paso del reto y el motor del backend decide el 100 %
+  // (video + quiz + acciones) → recién ahí la lección queda completada.
+  const [lessonReto, setLessonReto] = useState<LessonReto | null>(null);
+  const refreshReto = useCallback(async () => {
+    if (preview || !enrollmentId) return;
+    try {
+      const res = await retosApi.byLesson(lesson.id);
+      setLessonReto(res.reto);
+      if (res.reto?.progress.complete) {
+        setCompleted((was) => {
+          if (!was) onCompleted?.();
+          return true;
+        });
+      }
+    } catch {
+      /* sin reto o fallo de red: la lección se comporta como una normal */
+    }
+    // onCompleted no va en deps a propósito (se recrea cada render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson.id, enrollmentId, preview]);
+  useEffect(() => {
+    void refreshReto();
+  }, [refreshReto]);
+
+  async function onVideoEnded() {
+    if (!lessonReto || preview) return;
+    try {
+      const r = await retosApi.videoComplete(lessonReto.reto.id);
+      await refreshReto();
+      if (r.justCompleted) {
+        setCompleted(true);
+        onCompleted?.();
+      }
+    } catch (e) {
+      setError(
+        e instanceof ApiHttpError ? apiErrorMessage(e, tErrors) : t('lesson.progressErrorBody'),
+      );
+    }
+  }
 
   // En vídeos de Bunny medimos el tiempo de visionado REAL vía Player.js (ver
   // useBunnyWatch en VideoEmbed). En el resto de tipos de lección seguimos con
@@ -235,6 +282,8 @@ export function LessonPlayer({
   // hecha, se RETIENE hasta que el alumno consulte a Danna (aiHeld).
   function maybeAutoComplete() {
     if (completed || preview) return;
+    // En un reto la completitud la decide el motor, no el fin del video.
+    if (lessonReto) return;
     if (aiAction && !aiDone) {
       setAiHeld(true);
       return;
@@ -267,7 +316,7 @@ export function LessonPlayer({
   // En lecciones QUIZ, "completada" no es manual — lo dispara el bridge
   // en backend cuando el alumno aprueba (assessments.attempt.passed). En
   // preview no se puede completar (no hay matrícula).
-  const showManualCompleteButton = lesson.type !== 'QUIZ' && !preview;
+  const showManualCompleteButton = lesson.type !== 'QUIZ' && !preview && !lessonReto;
   // El tipo llega de la API: uno desconocido degrada al valor crudo, nunca a
   // una key del catálogo.
   const typeLabel = labelOr(t, `lesson.type.${lesson.type}`, lesson.type);
@@ -377,19 +426,34 @@ export function LessonPlayer({
           watchEnabled={!completed && !preview}
           onVideoProgress={setVideoPercent}
           onNearEnd={maybeAutoComplete}
+          onEnded={lessonReto ? () => void onVideoEnded() : undefined}
           enrollmentId={enrollmentId}
           preview={preview}
           onQuizPassed={() => setCompleted(true)}
         />
 
-        {(() => {
-          // Pregunta de perfil (p.ej. Reto 1): single-choice que no puntúa ni
-          // bloquea; solo captura un dato del alumno. Se pinta bajo el contenido.
-          const pq = parseProfileQuestion(lesson.content);
-          return pq ? <ProfileQuestion spec={pq} preview={preview} /> : null;
-        })()}
+        {lessonReto ? (
+          <RetoPanel
+            data={lessonReto}
+            courseId={courseId}
+            enrollmentId={enrollmentId}
+            lessonId={lesson.id}
+            lessonTitle={lesson.title}
+            onRefresh={refreshReto}
+            onSelectLesson={onSelectLesson}
+          />
+        ) : null}
 
-        {aiAction && !preview ? (
+        {!lessonReto
+          ? (() => {
+              // Pregunta de perfil (p.ej. Reto 1): single-choice que no puntúa ni
+              // bloquea; solo captura un dato del alumno. Se pinta bajo el contenido.
+              const pq = parseProfileQuestion(lesson.content);
+              return pq ? <ProfileQuestion spec={pq} preview={preview} /> : null;
+            })()
+          : null}
+
+        {aiAction && !preview && !lessonReto ? (
           <div className="mt-8">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
               <span aria-hidden="true">{aiDone ? '✅' : '🤖'}</span>
@@ -438,6 +502,7 @@ function LessonContent({
   watchEnabled,
   onVideoProgress,
   onNearEnd,
+  onEnded,
   preview,
 }: {
   lesson: CourseLesson & { content: Record<string, unknown> };
@@ -449,6 +514,7 @@ function LessonContent({
   watchEnabled: boolean;
   onVideoProgress?: (percent: number) => void;
   onNearEnd?: () => void;
+  onEnded?: () => void;
   preview?: boolean;
 }) {
   const t = useTranslations('playersContenido');
@@ -482,6 +548,7 @@ function LessonContent({
           watchEnabled={watchEnabled}
           onVideoProgress={onVideoProgress}
           onNearEnd={onNearEnd}
+          onEnded={onEnded}
           poster={typeof content['videoPoster'] === 'string' ? content['videoPoster'] : undefined}
         />
         {complementHtml ? <LessonRichHtml html={complementHtml} /> : null}
