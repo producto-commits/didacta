@@ -1,7 +1,9 @@
 # Servicio Whisper (auto-transcripción de vídeos subidos)
 
 Transcribe los mp4/webm subidos a MinIO para el tutor IA (LMS-90.D). Los vídeos
-de YouTube NO pasan por aquí (usan sus subtítulos, gratis y sin este servicio).
+de YouTube NO pasan por aquí: se transcriben con **transcriptapi.com** (la VPS no
+puede bajar de YouTube por el bloqueo anti-bot de datacenter). Basta poner
+`TRANSCRIPTAPI_KEY` en el env del app; no requiere este servicio Whisper.
 
 Implementa el contrato que espera el API (`whisper-transcriber.ts`):
 
@@ -47,11 +49,14 @@ tiene hasta reconstruir la imagen del app.
      -t ghcr.io/diegoforerog/didacta:beta9-dropi .
    docker push ghcr.io/diegoforerog/didacta:beta9-dropi
    ```
-2. En el app de Didacta en EasyPanel, añade la env que apunta al servicio Whisper
-   y (si la usaste) la clave:
+2. En el app de Didacta en EasyPanel, añade las env de transcripción:
    ```
+   # YouTube (obligatoria para transcribir vídeos de YouTube):
+   TRANSCRIPTAPI_KEY=<tu api key de transcriptapi.com>
+   TRANSCRIPTAPI_LANG=es                                    # opcional; prueba "es,asr" si sale vacío
+   # mp4 subidos (solo si usas el servicio Whisper de arriba):
    TRANSCRIPTION_WHISPER_URL=http://didacta-whisper:8000/transcribe
-   TRANSCRIPTION_WHISPER_KEY=<la misma que WHISPER_API_KEY>   # solo si la pusiste
+   TRANSCRIPTION_WHISPER_KEY=<la misma que WHISPER_API_KEY>  # solo si la pusiste
    TRANSCRIPTION_WHISPER_LANG=es
    ```
 3. **Deploy + Restart** del app (Deploy solo no corta el proceso viejo).

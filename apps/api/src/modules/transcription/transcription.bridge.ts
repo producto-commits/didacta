@@ -42,9 +42,13 @@ export class TranscriptionBridge implements OnModuleInit {
       this.onLessonSaved(event.metadata.tenantId, event.data.lessonId);
     bus.subscribe<LessonEvent>('courses.lesson.created', handler);
     bus.subscribe<LessonEvent>('courses.lesson.updated', handler);
-    this.logger.log(
-      `Auto-transcripción activa (YouTube gratis${this.transcription.whisperEnabled ? ' + Whisper para mp4' : '; Whisper mp4 OFF: falta TRANSCRIPTION_WHISPER_URL'}).`,
-    );
+    const yt = this.transcription.youtubeEnabled
+      ? 'YouTube vía transcriptapi'
+      : 'YouTube OFF (falta TRANSCRIPTAPI_KEY)';
+    const mp4 = this.transcription.whisperEnabled
+      ? 'mp4 vía Whisper'
+      : 'mp4 OFF (falta TRANSCRIPTION_WHISPER_URL)';
+    this.logger.log(`Auto-transcripción activa (${yt}; ${mp4}).`);
   }
 
   private async onLessonSaved(tenantId: string | undefined, lessonId: string): Promise<void> {

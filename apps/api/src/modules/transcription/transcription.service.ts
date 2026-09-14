@@ -8,7 +8,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ModuleContextFactory } from '../module-context.factory';
 import { ModuleRegistryService } from '../module-registry.service';
 import { detectVideoSource, type VideoSource } from './video-source';
-import { fetchYoutubeTranscript } from './youtube-transcript';
+import {
+  fetchYoutubeTranscriptViaApi,
+  transcriptApiConfigFromEnv,
+  type TranscriptApiConfig,
+} from './youtube-transcript-api';
 import {
   transcribeStorageVideo,
   whisperConfigFromEnv,
@@ -20,6 +24,7 @@ export type TranscribeReason =
   | 'already-has-transcript'
   | 'unknown-source'
   | 'whisper-not-configured'
+  | 'transcriptapi-not-configured'
   | 'no-captions';
 
 export interface TranscribeOutcome {
@@ -44,15 +49,16 @@ export interface BackfillResult {
  *   - El endpoint de backfill (`transcribe-all`) para los vídeos que YA estaban
  *     cargados antes de existir esta feature.
  *
- * Rellena `content.transcript` según el origen del vídeo (YouTube gratis /
- * Whisper para mp4 subido) y escribe vía `updateLesson`, que re-emite
- * `courses.lesson.updated` → el AiTutorBridge reindexa con el transcript ya
- * puesto. Idempotente: una lección que ya tiene transcript se salta.
+ * Rellena `content.transcript` según el origen del vídeo (YouTube vía
+ * transcriptapi.com / Whisper para mp4 subido) y escribe vía `updateLesson`, que
+ * re-emite `courses.lesson.updated` → el AiTutorBridge reindexa con el transcript
+ * ya puesto. Idempotente: una lección que ya tiene transcript se salta.
  */
 @Injectable()
 export class TranscriptionService {
   private readonly logger = new Logger(TranscriptionService.name);
   private readonly whisper: WhisperConfig | null = whisperConfigFromEnv();
+  private readonly transcriptApi: TranscriptApiConfig | null = transcriptApiConfigFromEnv();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -62,6 +68,10 @@ export class TranscriptionService {
 
   get whisperEnabled(): boolean {
     return this.whisper !== null;
+  }
+
+  get youtubeEnabled(): boolean {
+    return this.transcriptApi !== null;
   }
 
   /**
@@ -138,8 +148,16 @@ export class TranscriptionService {
     source: VideoSource,
   ): Promise<{ transcript: string | null; reason?: TranscribeReason }> {
     if (source.kind === 'youtube') {
-      const r = await fetchYoutubeTranscript(source.videoId);
-      return r?.text ? { transcript: r.text } : { transcript: null, reason: 'no-captions' };
+      if (!this.transcriptApi) {
+        this.logger.debug(
+          `Vídeo de YouTube (tenant ${tenantId}) sin transcribir: transcriptapi no configurado.`,
+        );
+        return { transcript: null, reason: 'transcriptapi-not-configured' };
+      }
+      // Se le pasa el id: transcriptapi.com resuelve el bloqueo de YouTube por su
+      // lado (la VPS no puede bajarlo directo por el anti-bot de datacenter).
+      const text = await fetchYoutubeTranscriptViaApi(source.videoId, this.transcriptApi);
+      return text ? { transcript: text } : { transcript: null, reason: 'no-captions' };
     }
     if (source.kind === 'storage') {
       if (!this.whisper) {
