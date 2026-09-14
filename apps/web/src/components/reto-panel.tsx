@@ -79,133 +79,151 @@ export function RetoPanel({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* 1) Widget de progreso del reto y del módulo (el del spec). */}
-      <RetoProgressWidget data={data} t={t} onSelectLesson={onSelectLesson} />
+    // SECCIÓN PROPIA debajo del video, a todo lo ancho (decisión de Dropi):
+    // el video queda como protagonista arriba; aquí el reto usa toda la
+    // pantalla: evaluación y acciones amplias a la izquierda, progreso a la
+    // derecha.
+    <section className="mt-8 border-t border-border pt-6">
+      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+            {t('reto.label', { position: reto.position })}
+          </p>
+          <h2 className="font-display text-xl font-bold text-text">{reto.title}</h2>
+        </div>
+        <p className="text-sm text-text-muted tabular-nums">
+          {t('reto.retoPercent')}: <b className="text-text">{progress.percent} %</b>
+        </p>
+      </header>
 
-      <div className="space-y-6">
-        {/* Quiz embebido: su aprobación llega al motor por el bus (attempt.passed). */}
-        {reto.quizId && enrollmentId ? (
-          <section>
-            <h3 className="mb-2 text-sm font-semibold text-text">
-              <span aria-hidden="true">✓ </span>
-              {t('reto.quizTitle')}
-            </h3>
-            <QuizPlayer
-              quizId={reto.quizId}
-              enrollmentId={enrollmentId}
-              lessonId={lessonId}
-              onPassed={() => void refreshUntilQuizDone()}
-            />
-          </section>
-        ) : null}
-
-        {reto.actions.map((a) => {
-          const step = progress.steps.find((s) => s.key === a.key);
-          const done = step?.done ?? false;
-          const cfg = a.config;
-          return (
-            <section key={a.key} className="rounded-card border border-border bg-surface p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span aria-hidden="true">{done ? '✅' : '⬜'}</span>
-                <h3 className="text-sm font-semibold text-text">{a.title}</h3>
-                {!a.required ? (
-                  <span className="text-xs text-text-muted">· {t('reto.optional')}</span>
-                ) : null}
-                {step && step.needed > 1 ? (
-                  <span className="text-xs text-text-muted tabular-nums">
-                    · {t('reto.stepCount', { count: step.count, needed: step.needed })}
-                  </span>
-                ) : null}
-              </div>
-              {a.description ? (
-                <p className="mt-1 text-sm text-text-muted">{a.description}</p>
-              ) : null}
-
-              {a.type === 'PROFILE_QUESTION' ? (
-                <ProfileQuestion
-                  spec={{
-                    key: String(cfg['questionKey'] ?? a.key),
-                    prompt: String(cfg['prompt'] ?? a.title),
-                    options: Array.isArray(cfg['options'])
-                      ? (cfg['options'] as unknown[]).filter(
-                          (o): o is string => typeof o === 'string',
-                        )
-                      : [],
-                  }}
-                  onAnswered={(value) => void markDone(a.key, { answer: value })}
-                />
-              ) : null}
-
-              {a.type === 'SELF_CONFIRM' ? (
-                <div className="mt-3 space-y-2">
-                  {typeof cfg['instructions'] === 'string' ? (
-                    <p className="text-sm text-text">{cfg['instructions']}</p>
-                  ) : null}
-                  {!done ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={pendingKey === a.key}
-                      onClick={() => void markDone(a.key)}
-                    >
-                      {pendingKey === a.key ? t('reto.confirming') : t('reto.confirmAction')}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {a.type === 'AI_CHAT_CONSULT' && courseId ? (
-                <div className="mt-3">
-                  {typeof cfg['prompt'] === 'string' ? (
-                    <p className="mb-2 text-sm text-text-muted">{cfg['prompt']}</p>
-                  ) : null}
-                  <AiTutorPanel
-                    courseId={courseId}
-                    lessonId={lessonId}
-                    lessonTitle={lessonTitle}
-                    onAsked={() => {
-                      if (!done) void markDone(a.key);
-                    }}
-                  />
-                </div>
-              ) : null}
-
-              {a.type === 'AI_ANALYZE_IMAGE' ? (
-                <RetoImageSubmit
-                  retoId={reto.id}
-                  actionKey={a.key}
-                  steps={
-                    Array.isArray(cfg['steps'])
-                      ? (cfg['steps'] as unknown[]).filter(
-                          (x): x is string => typeof x === 'string',
-                        )
-                      : []
-                  }
-                  count={step?.count ?? 0}
-                  needed={step?.needed ?? 1}
-                  done={done}
-                  onSubmitted={() => void onRefresh()}
-                />
-              ) : null}
-
-              {a.type === 'DB_ORDER_CREATED' || a.type === 'DB_ORDER_DELIVERED' ? (
-                <p className="mt-2 text-xs text-text-muted">{t('reto.dbPending')}</p>
-              ) : null}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+        <div className="space-y-6">
+          {/* Quiz embebido: su aprobación llega al motor por el bus (attempt.passed). */}
+          {reto.quizId && enrollmentId ? (
+            <section>
+              <h3 className="mb-2 text-sm font-semibold text-text">
+                <span aria-hidden="true">✓ </span>
+                {t('reto.quizTitle')}
+              </h3>
+              <QuizPlayer
+                quizId={reto.quizId}
+                enrollmentId={enrollmentId}
+                lessonId={lessonId}
+                onPassed={() => void refreshUntilQuizDone()}
+              />
             </section>
-          );
-        })}
+          ) : null}
 
-        {error ? (
-          <div
-            role="alert"
-            className="rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700"
-          >
-            {error}
-          </div>
-        ) : null}
+          {reto.actions.map((a) => {
+            const step = progress.steps.find((s) => s.key === a.key);
+            const done = step?.done ?? false;
+            const cfg = a.config;
+            return (
+              <section key={a.key} className="rounded-card border border-border bg-surface p-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span aria-hidden="true">{done ? '✅' : '⬜'}</span>
+                  <h3 className="text-sm font-semibold text-text">{a.title}</h3>
+                  {!a.required ? (
+                    <span className="text-xs text-text-muted">· {t('reto.optional')}</span>
+                  ) : null}
+                  {step && step.needed > 1 ? (
+                    <span className="text-xs text-text-muted tabular-nums">
+                      · {t('reto.stepCount', { count: step.count, needed: step.needed })}
+                    </span>
+                  ) : null}
+                </div>
+                {a.description ? (
+                  <p className="mt-1 text-sm text-text-muted">{a.description}</p>
+                ) : null}
+
+                {a.type === 'PROFILE_QUESTION' ? (
+                  <ProfileQuestion
+                    spec={{
+                      key: String(cfg['questionKey'] ?? a.key),
+                      prompt: String(cfg['prompt'] ?? a.title),
+                      options: Array.isArray(cfg['options'])
+                        ? (cfg['options'] as unknown[]).filter(
+                            (o): o is string => typeof o === 'string',
+                          )
+                        : [],
+                    }}
+                    onAnswered={(value) => void markDone(a.key, { answer: value })}
+                  />
+                ) : null}
+
+                {a.type === 'SELF_CONFIRM' ? (
+                  <div className="mt-3 space-y-2">
+                    {typeof cfg['instructions'] === 'string' ? (
+                      <p className="text-sm text-text">{cfg['instructions']}</p>
+                    ) : null}
+                    {!done ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={pendingKey === a.key}
+                        onClick={() => void markDone(a.key)}
+                      >
+                        {pendingKey === a.key ? t('reto.confirming') : t('reto.confirmAction')}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {a.type === 'AI_CHAT_CONSULT' && courseId ? (
+                  <div className="mt-3">
+                    {typeof cfg['prompt'] === 'string' ? (
+                      <p className="mb-2 text-sm text-text-muted">{cfg['prompt']}</p>
+                    ) : null}
+                    <AiTutorPanel
+                      courseId={courseId}
+                      lessonId={lessonId}
+                      lessonTitle={lessonTitle}
+                      onAsked={() => {
+                        if (!done) void markDone(a.key);
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {a.type === 'AI_ANALYZE_IMAGE' ? (
+                  <RetoImageSubmit
+                    retoId={reto.id}
+                    actionKey={a.key}
+                    steps={
+                      Array.isArray(cfg['steps'])
+                        ? (cfg['steps'] as unknown[]).filter(
+                            (x): x is string => typeof x === 'string',
+                          )
+                        : []
+                    }
+                    count={step?.count ?? 0}
+                    needed={step?.needed ?? 1}
+                    done={done}
+                    onSubmitted={() => void onRefresh()}
+                  />
+                ) : null}
+
+                {a.type === 'DB_ORDER_CREATED' || a.type === 'DB_ORDER_DELIVERED' ? (
+                  <p className="mt-2 text-xs text-text-muted">{t('reto.dbPending')}</p>
+                ) : null}
+              </section>
+            );
+          })}
+
+          {error ? (
+            <div
+              role="alert"
+              className="rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700"
+            >
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Progreso del reto y del módulo (widget del spec), a la derecha. */}
+        <RetoProgressWidget data={data} t={t} onSelectLesson={onSelectLesson} />
       </div>
-    </div>
+    </section>
   );
 }
 

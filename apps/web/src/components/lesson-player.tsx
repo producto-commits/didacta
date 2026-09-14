@@ -422,28 +422,20 @@ export function LessonPlayer({
         </div>
       </header>
 
-      <div
-        className={
-          lessonReto
-            ? 'grid gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]'
-            : 'px-6 py-6'
-        }
-      >
-        <div className="min-w-0">
-          <LessonContent
-            lesson={lesson}
-            resumeAt={initialResumePositionSec}
-            onTick={sendDelta}
-            onWatch={handleWatch}
-            watchEnabled={!completed && !preview}
-            onVideoProgress={setVideoPercent}
-            onNearEnd={maybeAutoComplete}
-            onEnded={lessonReto ? () => void onVideoEnded() : undefined}
-            enrollmentId={enrollmentId}
-            preview={preview}
-            onQuizPassed={() => setCompleted(true)}
-          />
-        </div>
+      <div className="px-6 py-6">
+        <LessonContent
+          lesson={lesson}
+          resumeAt={initialResumePositionSec}
+          onTick={sendDelta}
+          onWatch={handleWatch}
+          watchEnabled={!completed && !preview}
+          onVideoProgress={setVideoPercent}
+          onNearEnd={maybeAutoComplete}
+          onEnded={lessonReto ? () => void onVideoEnded() : undefined}
+          enrollmentId={enrollmentId}
+          preview={preview}
+          onQuizPassed={() => setCompleted(true)}
+        />
 
         {lessonReto ? (
           <RetoPanel
