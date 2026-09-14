@@ -322,6 +322,7 @@ export function buildAdminGroups({ isSuperAdmin }: { isSuperAdmin: boolean }): S
     icon: 'book',
     items: [
       { href: '/admin/cursos/categorias', label: 'Categorías de cursos', icon: 'book' },
+      { href: '/admin/retos', label: 'Retos', icon: 'target' },
       { href: '/admin/competencias', label: 'Competencias', icon: 'award' },
       { href: '/admin/imagenes', label: 'Imágenes', icon: 'image' },
     ],

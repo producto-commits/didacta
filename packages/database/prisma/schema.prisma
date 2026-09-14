@@ -4643,3 +4643,112 @@ model ModRetoActionDone {
   @@index([tenantId, userId, lessonId])
   @@map("mod_reto_action_done")
 }
+
+// ─── Retos (Dropi Academy) ───────────────────────────────────────────────
+// Un reto es una entidad propia administrable: asocia una lección (su
+// "página"), un quiz (embebido) y una lista de acciones de un catálogo.
+// Se completa SOLO cuando todas sus acciones requeridas están hechas y recién
+// ahí otorga puntos e insignia (ver docs/retos/plan-retos.md). Sin FKs
+// cross-módulo: lessonId/quizId/userId son UUIDs lógicos.
+
+/// Definición de un reto (admin).
+model ModRetosReto {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  /// Clave estable (p.ej. `bienvenido-1`). Idempotencia del seed/import.
+  key         String  @db.VarChar(64)
+  title       String  @db.VarChar(160)
+  description String? @db.VarChar(2000)
+  /// Agrupa los retos de un mismo módulo/nivel (p.ej. `bienvenido`).
+  moduleKey   String  @default("bienvenido") @map("module_key") @db.VarChar(64)
+  /// Orden dentro del módulo (1..n). Solo navegación: los retos NO son lineales.
+  position    Int
+  /// FK lógica a mod_courses_lesson: la lección VIDEO que es la página del reto.
+  lessonId    String? @map("lesson_id") @db.Uuid
+  /// FK lógica a mod_assessments_quiz: el quiz que se embebe en el reto.
+  quizId      String? @map("quiz_id") @db.Uuid
+  /// Puntos que otorga al 100 % (explícitos, sin techo diario).
+  points      Int     @default(0)
+  badgeKey    String? @map("badge_key") @db.VarChar(64)
+  badgeLabel  String? @map("badge_label") @db.VarChar(120)
+  badgeEmoji  String? @map("badge_emoji") @db.VarChar(16)
+  /// Mensaje que ve el alumno al completar el reto al 100 %.
+  completionMessage String? @map("completion_message") @db.VarChar(1000)
+  /// DRAFT | PUBLISHED. Solo los publicados se muestran al alumno.
+  status      String   @default("DRAFT") @db.VarChar(16)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  actions ModRetosAction[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, moduleKey, position])
+  @@index([tenantId, lessonId])
+  @@map("mod_retos_reto")
+}
+
+/// Acción de un reto, elegida del catálogo (ver action-catalog.ts en el API).
+/// Video y quiz NO se guardan como acciones: son implícitas del reto cuando
+/// tiene lessonId/quizId.
+model ModRetosAction {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  retoId      String  @map("reto_id") @db.Uuid
+  /// Clave estable dentro del reto (p.ej. `perfil`, `producto`, `pedido`).
+  key         String  @db.VarChar(64)
+  /// Tipo del catálogo: PROFILE_QUESTION | AI_ANALYZE_IMAGE | AI_CHAT_CONSULT |
+  /// SELF_CONFIRM | DB_ORDER_CREATED | DB_ORDER_DELIVERED.
+  type        String  @db.VarChar(32)
+  title       String  @db.VarChar(160)
+  description String? @db.VarChar(2000)
+  position    Int
+  /// false = no cuenta para el 100 % del reto (p.ej. "mi primer pedido").
+  required    Boolean @default(true)
+  /// Configuración específica del tipo (pasos, prompt, nº de capturas, etc.).
+  config      Json    @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  reto ModRetosReto @relation(fields: [retoId], references: [id], onDelete: Cascade)
+
+  @@unique([retoId, key])
+  @@index([tenantId, retoId, position])
+  @@map("mod_retos_action")
+}
+
+/// Acción de un reto hecha por un alumno. `count` cuenta entregas aprobadas
+/// para acciones con varias (Reto 3: 2 capturas → "1 de 2"). `meta` guarda
+/// el feedback de la IA, la captura validada, etc.
+model ModRetosActionDone {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  /// ID lógico del miembro (tabla core `user`).
+  userId    String   @map("user_id") @db.Uuid
+  retoId    String   @map("reto_id") @db.Uuid
+  actionKey String   @map("action_key") @db.VarChar(64)
+  count     Int      @default(1)
+  meta      Json?
+  doneAt    DateTime @default(now()) @map("done_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId, retoId, actionKey])
+  @@index([tenantId, userId, retoId])
+  @@map("mod_retos_action_done")
+}
+
+/// Reto completado al 100 % por un alumno (y premiado). Idempotencia de
+/// puntos/insignia: una fila por alumno+reto.
+model ModRetosCompletion {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  retoId      String    @map("reto_id") @db.Uuid
+  completedAt DateTime  @default(now()) @map("completed_at")
+  awardedAt   DateTime? @map("awarded_at")
+  /// Clave del asiento en gamificación (`retos.reto:<userId>:<retoId>`).
+  sourceKey   String    @map("source_key") @db.VarChar(160)
+
+  @@unique([tenantId, userId, retoId])
+  @@index([tenantId, userId, completedAt(sort: Desc)])
+  @@map("mod_retos_completion")
+}

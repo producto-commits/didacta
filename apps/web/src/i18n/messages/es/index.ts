@@ -19,6 +19,7 @@ import adminFundae from './adminFundae.json';
 import adminMarca from './adminMarca.json';
 import adminMonetizacion from './adminMonetizacion.json';
 import adminPagos from './adminPagos.json';
+import adminRetos from './adminRetos.json';
 import adminSso from './adminSso.json';
 import adminUsuarios from './adminUsuarios.json';
 import alumnoAprendizaje from './alumnoAprendizaje.json';
@@ -66,6 +67,7 @@ export default {
   adminMarca,
   adminMonetizacion,
   adminPagos,
+  adminRetos,
   adminSso,
   adminUsuarios,
   alumnoAprendizaje,

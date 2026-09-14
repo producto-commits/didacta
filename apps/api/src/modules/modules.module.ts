@@ -58,6 +58,7 @@ import { FundaeModule } from './fundae/fundae.module';
 import { SurveysModule } from './surveys/surveys.module';
 import { ResourcesModule } from './resources/resources.module';
 import { GamificationModule } from './gamification/gamification.module';
+import { RetosModule } from './retos/retos.module';
 import { OutboxMetrics, outboxMetricsProviders } from './outbox.metrics';
 
 @Module({
@@ -81,6 +82,7 @@ import { OutboxMetrics, outboxMetricsProviders } from './outbox.metrics';
     forwardRef(() => SurveysModule),
     forwardRef(() => ResourcesModule),
     forwardRef(() => GamificationModule),
+    forwardRef(() => RetosModule),
   ],
   controllers: [
     CoursesController,
