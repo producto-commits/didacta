@@ -44,6 +44,7 @@ export {
   type ListAnswersResultView,
   type MonthlyReportView,
   type ReindexAllResultView,
+  type TranscribeAllResultView,
   type ReportTopicView,
   type ReviewAnswerInput,
   type ReviewAnswerView,

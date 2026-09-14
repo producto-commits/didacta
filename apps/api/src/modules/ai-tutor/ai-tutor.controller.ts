@@ -24,6 +24,7 @@ import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { ZodValidationPipe } from '../../auth/zod-validation.pipe';
 import type { SessionClaims } from '../../auth/token.service';
 import { ModuleRegistryService } from '../module-registry.service';
+import { TranscriptionService } from '../transcription/transcription.service';
 
 const ADMIN_ROLES = new Set(['super_admin', 'tenant_admin']);
 /** Mismos roles que previsualizan un curso sin matricularse (PREVIEW_ROLES en web). */
@@ -43,7 +44,10 @@ const STAFF_ROLES = new Set(['super_admin', 'tenant_admin', 'formador']);
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class AiTutorController {
-  constructor(private readonly registry: ModuleRegistryService) {}
+  constructor(
+    private readonly registry: ModuleRegistryService,
+    private readonly transcription: TranscriptionService,
+  ) {}
 
   private requireAuth(user: SessionClaims | undefined): SessionClaims {
     if (!user) throw new UnauthorizedException();
@@ -136,5 +140,15 @@ export class AiTutorController {
       failed: results.filter((r) => !r.ok).length,
       results,
     };
+  }
+
+  @Post('admin/ai-tutor/transcribe-all')
+  @ApiOperation({
+    summary:
+      'Genera la transcripción de TODOS los vídeos sin transcript de los cursos publicados (backfill). YouTube usa subtítulos (gratis); los mp4 subidos usan Whisper si está configurado. Cada transcripción re-indexa la lección en el tutor. Solo admin.',
+  })
+  async transcribeAll(@CurrentUser() user: SessionClaims | undefined) {
+    const u = this.requireAdmin(user);
+    return this.transcription.backfillPublished(u.tenantId);
   }
 }

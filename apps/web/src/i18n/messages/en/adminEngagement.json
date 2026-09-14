@@ -303,7 +303,16 @@
     "reindexing": "Reindexing…",
     "reindexRun": "Reindex all published courses",
     "reindexStats": "{indexed} indexed · {failed} with errors · {total} total.",
-    "reindexCheckQuota": "Check that the embeddings provider is active and has quota."
+    "reindexCheckQuota": "Check that the embeddings provider is active and has quota.",
+    "transcribeTitle": "Transcription of existing videos",
+    "transcribeDescription": "New videos are transcribed automatically on save. Use this to generate transcripts for videos that were ALREADY uploaded without one. YouTube videos use their captions (free); uploaded videos use Whisper if the service is configured. Each transcript re-indexes the lesson in the tutor automatically.",
+    "transcribing": "Transcribing…",
+    "transcribeRun": "Transcribe all published videos",
+    "transcribeStats": "{transcribed} transcribed · {skipped} unchanged · {failed} with errors · {total} total.",
+    "transcribeCheckService": "Check that the videos have captions (YouTube) or that the Whisper service is configured (uploaded mp4).",
+    "transcribeDoneOk": "Transcription: {transcribed}/{total} new videos with transcript.",
+    "transcribeDoneWithFailed": "Transcription: {transcribed}/{total} OK, {failed} with errors.",
+    "transcribeConnectionCut": "The connection was cut before finishing, but the transcription is still running on the server. Wait a few minutes and check again; there is no need to run it again."
   },
   "purposeLabels": {
     "chat": "Chat (AI tutor)",

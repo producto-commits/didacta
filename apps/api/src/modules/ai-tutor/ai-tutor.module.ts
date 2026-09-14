@@ -11,6 +11,8 @@ import { AiTutorController } from './ai-tutor.controller';
 import { AiTutorReviewController } from './ai-tutor-review.controller';
 import { AiTutorErrorFilter } from './ai-tutor-error.filter';
 import { AiTutorBridge } from './ai-tutor.bridge';
+import { TranscriptionBridge } from '../transcription/transcription.bridge';
+import { TranscriptionService } from '../transcription/transcription.service';
 
 /// Backend del módulo `mod.ai-tutor`. Encapsula el controller (ask +
 /// index admin), el filter y el bridge cross-module que escucha eventos
@@ -21,6 +23,11 @@ import { AiTutorBridge } from './ai-tutor.bridge';
 @Module({
   imports: [AuthModule, forwardRef(() => ModulesModule)],
   controllers: [AiTutorController, AiTutorReviewController],
-  providers: [AiTutorBridge, { provide: APP_FILTER, useClass: AiTutorErrorFilter }],
+  providers: [
+    AiTutorBridge,
+    TranscriptionBridge,
+    TranscriptionService,
+    { provide: APP_FILTER, useClass: AiTutorErrorFilter },
+  ],
 })
 export class AiTutorModule {}

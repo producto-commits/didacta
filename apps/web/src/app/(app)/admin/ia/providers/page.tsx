@@ -20,6 +20,7 @@ import {
   aiTutorApi,
   type ProviderCatalogEntry,
   type ReindexAllResultView,
+  type TranscribeAllResultView,
   type TenantProviderConfig,
 } from '@/modules/ai-tutor';
 import { ApiHttpError } from '@/lib/api-client';
@@ -86,6 +87,8 @@ export default function AiProvidersAdminPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [reindexing, setReindexing] = useState(false);
   const [reindexResult, setReindexResult] = useState<ReindexAllResultView | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcribeResult, setTranscribeResult] = useState<TranscribeAllResultView | null>(null);
 
   async function reload() {
     try {
@@ -197,6 +200,36 @@ export default function AiProvidersAdminPage() {
       );
     } finally {
       setReindexing(false);
+    }
+  }
+
+  async function handleTranscribeAll() {
+    setTranscribing(true);
+    setError(null);
+    setInfo(null);
+    setTranscribeResult(null);
+    try {
+      const res = await aiTutorApi.transcribeAll();
+      setTranscribeResult(res);
+      setInfo(
+        res.failed
+          ? t('aiProviders.transcribeDoneWithFailed', {
+              transcribed: res.transcribed,
+              total: res.total,
+              failed: res.failed,
+            })
+          : t('aiProviders.transcribeDoneOk', { transcribed: res.transcribed, total: res.total }),
+      );
+    } catch (e) {
+      // Igual que el reindexado: transcribir todo el catálogo tarda y el proxy
+      // puede cortar la conexión antes de terminar sin que nada haya fallado.
+      setError(
+        e instanceof ApiHttpError
+          ? apiErrorMessage(e, tErrors)
+          : t('aiProviders.transcribeConnectionCut'),
+      );
+    } finally {
+      setTranscribing(false);
     }
   }
 
@@ -379,6 +412,31 @@ export default function AiProvidersAdminPage() {
               })}
               {reindexResult.failed > 0 ? (
                 <span className="text-danger-700"> {t('aiProviders.reindexCheckQuota')}</span>
+              ) : null}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('aiProviders.transcribeTitle')}</CardTitle>
+          <CardDescription>{t('aiProviders.transcribeDescription')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button type="button" onClick={() => void handleTranscribeAll()} disabled={transcribing}>
+            {transcribing ? t('aiProviders.transcribing') : t('aiProviders.transcribeRun')}
+          </Button>
+          {transcribeResult ? (
+            <p className="text-sm text-text-muted">
+              {t('aiProviders.transcribeStats', {
+                transcribed: transcribeResult.transcribed,
+                skipped: transcribeResult.skipped,
+                failed: transcribeResult.failed,
+                total: transcribeResult.total,
+              })}
+              {transcribeResult.failed > 0 ? (
+                <span className="text-danger-700"> {t('aiProviders.transcribeCheckService')}</span>
               ) : null}
             </p>
           ) : null}

@@ -107,6 +107,19 @@ export const aiTutorApi = {
       bearer(),
     );
   },
+
+  /**
+   * Genera la transcripción de todos los vídeos sin transcript de los cursos
+   * publicados (backfill). YouTube usa subtítulos (gratis); los mp4 usan Whisper
+   * si está configurado. Cada transcripción re-indexa la lección. Solo admin.
+   */
+  async transcribeAll(): Promise<TranscribeAllResultView> {
+    return apiFetch<TranscribeAllResultView>(
+      '/api/v1/admin/ai-tutor/transcribe-all',
+      { method: 'POST', body: JSON.stringify({}) },
+      bearer(),
+    );
+  },
 };
 
 export interface ReindexAllResultView {
@@ -114,6 +127,21 @@ export interface ReindexAllResultView {
   indexed: number;
   failed: number;
   results: Array<{ courseId: string; ok: boolean; error?: string }>;
+}
+
+export interface TranscribeAllResultView {
+  total: number;
+  transcribed: number;
+  skipped: number;
+  failed: number;
+  results: Array<{
+    lessonId: string;
+    status: 'done' | 'skipped';
+    reason?: string;
+    kind?: string;
+    chars?: number;
+    error?: string;
+  }>;
 }
 
 // ─── Revisión de respuestas del tutor (panel admin) ─────────────────────────

@@ -303,7 +303,16 @@
     "reindexing": "Reindexando…",
     "reindexRun": "Reindexar todos los cursos publicados",
     "reindexStats": "{indexed} indexados · {failed} con error · {total} total.",
-    "reindexCheckQuota": "Revisa que el proveedor de embeddings esté activo y con cuota."
+    "reindexCheckQuota": "Revisa que el proveedor de embeddings esté activo y con cuota.",
+    "transcribeTitle": "Transcripción de vídeos existentes",
+    "transcribeDescription": "Los vídeos nuevos se transcriben solos al guardarse. Usa esto para generar la transcripción de los vídeos que YA estaban cargados sin ella. Los de YouTube usan sus subtítulos (gratis); los vídeos subidos usan Whisper si está configurado el servicio. Cada transcripción reindexa la lección en el tutor automáticamente.",
+    "transcribing": "Transcribiendo…",
+    "transcribeRun": "Transcribir todos los vídeos publicados",
+    "transcribeStats": "{transcribed} transcritos · {skipped} sin cambios · {failed} con error · {total} total.",
+    "transcribeCheckService": "Revisa que los vídeos tengan subtítulos (YouTube) o que el servicio Whisper esté configurado (mp4 subidos).",
+    "transcribeDoneOk": "Transcripción: {transcribed}/{total} vídeos nuevos con transcript.",
+    "transcribeDoneWithFailed": "Transcripción: {transcribed}/{total} OK, {failed} con error.",
+    "transcribeConnectionCut": "Se cortó la conexión antes de terminar, pero la transcripción sigue en marcha en el servidor. Espera unos minutos y vuelve a comprobar; no hace falta repetir."
   },
   "purposeLabels": {
     "chat": "Chat (tutor IA)",
