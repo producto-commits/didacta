@@ -22,7 +22,7 @@ interface Props {
   lessonId: string;
   lessonTitle: string;
   /** Vuelve a pedir el progreso al backend (tras quiz aprobado, acción hecha…). */
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<LessonReto | null>;
   /** Navegar a otra lección del curso (CTA "Ir al siguiente reto"). */
   onSelectLesson?: (lessonId: string) => void;
 }
@@ -63,6 +63,20 @@ export function RetoPanel({
     }
   }
 
+  // El "quiz aprobado" llega al motor por el bus (outbox, asíncrono): justo
+  // después de enviarlo el progreso puede seguir sin el paso. Se reintenta el
+  // refresco unos segundos hasta verlo hecho, para que el widget no se quede
+  // atrás.
+  async function refreshUntilQuizDone() {
+    for (let i = 0; i < 6; i++) {
+      // Se usa el dato que devuelve el refresco (el prop `data` de este cierre
+      // se quedaría con el valor de cuando se llamó).
+      const fresh = await onRefresh();
+      if (fresh?.progress.steps.find((s) => s.key === 'quiz')?.done) return;
+      await new Promise((r) => setTimeout(r, 1000 + i * 500));
+    }
+  }
+
   const stepLabel = (s: StepProgress) =>
     s.type === 'VIDEO' ? t('reto.stepVideo') : s.type === 'QUIZ' ? t('reto.stepQuiz') : s.title;
 
@@ -80,7 +94,7 @@ export function RetoPanel({
               quizId={reto.quizId}
               enrollmentId={enrollmentId}
               lessonId={lessonId}
-              onPassed={() => void onRefresh()}
+              onPassed={() => void refreshUntilQuizDone()}
             />
           </section>
         ) : null}

@@ -129,8 +129,8 @@ export function LessonPlayer({
   // 100 % real como paso del reto y el motor del backend decide el 100 %
   // (video + quiz + acciones) → recién ahí la lección queda completada.
   const [lessonReto, setLessonReto] = useState<LessonReto | null>(null);
-  const refreshReto = useCallback(async () => {
-    if (preview || !enrollmentId) return;
+  const refreshReto = useCallback(async (): Promise<LessonReto | null> => {
+    if (preview || !enrollmentId) return null;
     try {
       const res = await retosApi.byLesson(lesson.id);
       setLessonReto(res.reto);
@@ -140,8 +140,10 @@ export function LessonPlayer({
           return true;
         });
       }
+      return res.reto;
     } catch {
       /* sin reto o fallo de red: la lección se comporta como una normal */
+      return null;
     }
     // onCompleted no va en deps a propósito (se recrea cada render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
