@@ -7,7 +7,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { DanaChat } from '@/components/dana-chat';
 import { RetoImageSubmit } from '@/components/reto-image-submit';
+import { danaApi } from '@/lib/dana';
 import { Button } from '@/components/ui/button';
 import { authStorage } from '@/lib/auth-storage';
 import { retosApi, type MyRetos, type RetoWithProgress } from '@/lib/retos';
@@ -27,6 +29,8 @@ export function RetosAssistant() {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<MyRetos | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [view, setView] = useState<'menu' | 'dana'>('menu');
+  const [danaEnabled, setDanaEnabled] = useState(false);
 
   const load = useCallback(async () => {
     if (!authStorage.getAccessToken()) return;
@@ -39,6 +43,12 @@ export function RetosAssistant() {
 
   useEffect(() => {
     void load();
+    if (authStorage.getAccessToken()) {
+      danaApi
+        .status()
+        .then((s) => setDanaEnabled(Boolean(s.enabled)))
+        .catch(() => setDanaEnabled(false));
+    }
   }, [load]);
 
   useEffect(() => {
@@ -84,13 +94,32 @@ export function RetosAssistant() {
           </header>
 
           <div className="overflow-y-auto px-4 py-4">
-            {!current ? (
+            {view === 'dana' ? (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setView('menu')}
+                  className="text-sm text-brand-600 hover:underline"
+                >
+                  {t('reto.assistantBack')}
+                </button>
+                <h3 className="font-display text-lg font-bold text-text">{t('reto.danaTitle')}</h3>
+                <DanaChat />
+              </div>
+            ) : !current ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg border border-border bg-surface-2 p-3 text-sm">
+                  <button
+                    type="button"
+                    disabled={!danaEnabled}
+                    onClick={() => setView('dana')}
+                    className="rounded-lg border border-border bg-surface-2 p-3 text-left text-sm hover:border-brand-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
                     <p className="font-semibold text-text">{t('reto.assistantDana')}</p>
-                    <p className="text-xs text-text-muted">{t('reto.assistantDanaSoon')}</p>
-                  </div>
+                    <p className="text-xs text-text-muted">
+                      {danaEnabled ? t('reto.danaIntro') : t('reto.assistantDanaSoon')}
+                    </p>
+                  </button>
                   <div className="rounded-lg border-2 border-brand-500 bg-brand-50 p-3 text-sm">
                     <p className="font-semibold text-text">{t('reto.assistantReport')}</p>
                     <p className="text-xs text-text-muted">{t('reto.assistantPick')}</p>

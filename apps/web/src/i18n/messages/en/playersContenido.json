@@ -185,7 +185,20 @@
     "assistantBack": "← Choose another challenge",
     "assistantEmpty": "You have no challenges available yet.",
     "assistantClose": "Close",
-    "assistantMessages": "Go to Messages →"
+    "assistantMessages": "Go to Messages →",
+    "ctaCertificate": "Download my certificate →",
+    "ctaNextCourse": "See the next course →",
+    "danaTitle": "Talk to Dana",
+    "danaIntro": "Dana is the Dropi Academy assistant. Ask her about the platform, your orders or the programme.",
+    "danaPlaceholder": "Write your message to Dana…",
+    "danaSend": "Send",
+    "danaSending": "Sending…",
+    "danaWaiting": "Dana is typing…",
+    "danaEmpty": "No messages yet. Write to Dana.",
+    "danaYou": "You",
+    "danaHer": "Dana",
+    "danaError": "We could not reach Dana. Try again in a moment.",
+    "danaOff": "Coming soon"
   },
   "claseEmbed": {
     "countdownTomorrow": "Tomorrow",

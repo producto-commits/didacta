@@ -4752,3 +4752,22 @@ model ModRetosCompletion {
   @@index([tenantId, userId, completedAt(sort: Desc)])
   @@map("mod_retos_completion")
 }
+
+// ─── Dana (agente n8n de Dropi Academy) ─────────────────────────────────
+/// Mensajes del chat "Hablar con Dana" del asistente de retos. El alumno
+/// escribe (IN) → se reenvía al webhook de n8n; Dana responde por nuestro
+/// webhook receptor (OUT). Sin FKs cross-módulo: userId es UUID lógico.
+model ModDanaMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// IN = alumno → Dana · OUT = Dana → alumno
+  direction String   @db.VarChar(8)
+  text      String   @db.VarChar(4000)
+  /// IN: SENT | FAILED. OUT: RECEIVED.
+  status    String   @default("SENT") @db.VarChar(16)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, userId, createdAt(sort: Desc)])
+  @@map("mod_dana_message")
+}

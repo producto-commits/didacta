@@ -59,6 +59,7 @@ import { SurveysModule } from './surveys/surveys.module';
 import { ResourcesModule } from './resources/resources.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { RetosModule } from './retos/retos.module';
+import { DanaModule } from './dana/dana.module';
 import { OutboxMetrics, outboxMetricsProviders } from './outbox.metrics';
 
 @Module({
@@ -83,6 +84,7 @@ import { OutboxMetrics, outboxMetricsProviders } from './outbox.metrics';
     forwardRef(() => ResourcesModule),
     forwardRef(() => GamificationModule),
     forwardRef(() => RetosModule),
+    DanaModule,
   ],
   controllers: [
     CoursesController,

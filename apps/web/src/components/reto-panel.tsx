@@ -295,6 +295,23 @@ function RetoProgressWidget({
               {t('reto.nextReto')}
             </Button>
           ) : null}
+          {data.moduleCompleted >= data.moduleTotal && data.moduleTotal > 0 ? (
+            // Cierre del módulo (spec): certificado + siguiente nivel de contenido.
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href="/certificados"
+                className="inline-flex items-center rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
+              >
+                {t('reto.ctaCertificate')}
+              </a>
+              <a
+                href="/cursos"
+                className="inline-flex items-center rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-text hover:border-brand-300"
+              >
+                {t('reto.ctaNextCourse')}
+              </a>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="mt-4 rounded-lg bg-surface-2 p-3 text-sm">

@@ -185,7 +185,20 @@
     "assistantBack": "← Elegir otro reto",
     "assistantEmpty": "Aún no tienes retos disponibles.",
     "assistantClose": "Cerrar",
-    "assistantMessages": "Ir a Mensajes →"
+    "assistantMessages": "Ir a Mensajes →",
+    "ctaCertificate": "Descargar mi certificado →",
+    "ctaNextCourse": "Ver el siguiente curso →",
+    "danaTitle": "Hablar con Dana",
+    "danaIntro": "Dana es la asistente de Dropi Academy. Pregúntale sobre la plataforma, tus pedidos o el programa.",
+    "danaPlaceholder": "Escribe tu mensaje a Dana…",
+    "danaSend": "Enviar",
+    "danaSending": "Enviando…",
+    "danaWaiting": "Dana está escribiendo…",
+    "danaEmpty": "Aún no hay mensajes. Escríbele a Dana.",
+    "danaYou": "Tú",
+    "danaHer": "Dana",
+    "danaError": "No pudimos contactar a Dana. Inténtalo de nuevo en un momento.",
+    "danaOff": "Muy pronto"
   },
   "claseEmbed": {
     "countdownTomorrow": "Mañana",
