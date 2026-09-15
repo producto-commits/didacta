@@ -772,7 +772,7 @@ export default function CourseAlumnoPage() {
           <aside
             id="curso-reto"
             ref={setRetoHost}
-            className="min-w-0 self-start xl:sticky xl:top-6 xl:max-h-[calc(100dvh-3rem)] xl:overflow-auto"
+            className="min-w-0 self-start lg:col-span-2 xl:sticky xl:top-6 xl:col-span-1 xl:max-h-[calc(100dvh-3rem)] xl:overflow-auto"
           />
         ) : null}
       </div>

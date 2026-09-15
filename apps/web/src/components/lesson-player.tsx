@@ -171,6 +171,16 @@ export function LessonPlayer({
     // onRetoChange no va en deps: se recrea cada render de la página.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasReto]);
+  // Con sitio para la tercera columna (xl, 1280px) el reto va apilado en ella;
+  // por debajo, el contenedor baja bajo el video y el reto usa el formato ancho.
+  const [xl, setXl] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const apply = () => setXl(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   async function onVideoEnded() {
     if (!lessonReto || preview) return;
@@ -465,7 +475,7 @@ export function LessonPlayer({
                   lessonTitle={lesson.title}
                   onRefresh={refreshReto}
                   onSelectLesson={onSelectLesson}
-                  layout={retoHost ? 'column' : 'wide'}
+                  layout={retoHost && xl ? 'column' : 'wide'}
                 />
               );
               // Tercera columna de la página del curso (Contenido | Video | Reto):
