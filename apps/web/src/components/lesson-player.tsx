@@ -128,6 +128,7 @@ export function LessonPlayer({
   const [aiHeld, setAiHeld] = useState(false);
   const tErrors = useTranslations('errors');
   const [completed, setCompleted] = useState(initialCompleted);
+  const completedRef = useRef(initialCompleted);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   // % del vídeo self-hosted visto (para la barra de progreso de la lección).
@@ -148,10 +149,12 @@ export function LessonPlayer({
         // En modo reto el check verde significa "reto al 100 %", no "lección
         // completada por el camino viejo": el estado sigue al motor.
         const complete = res.reto.progress.complete;
-        setCompleted((was) => {
-          if (!was && complete) onCompleted?.();
-          return complete;
-        });
+        // Fuera del updater: avisar al padre dentro de setState dispara
+        // "Cannot update a component while rendering a different component".
+        const was = completedRef.current;
+        completedRef.current = complete;
+        setCompleted(complete);
+        if (!was && complete) onCompleted?.();
       }
       return res.reto;
     } catch {

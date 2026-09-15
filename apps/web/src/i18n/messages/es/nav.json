@@ -74,7 +74,8 @@
     "Recursos": "Recursos",
     "Encuestas": "Encuestas",
     "Aula virtual": "Aula virtual",
-    "Volver a la app": "Volver a la app"
+    "Volver a la app": "Volver a la app",
+    "Menú por rol": "Menú por rol"
   },
   "addToGroup": "Añadir a {group}"
 }

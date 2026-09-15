@@ -74,7 +74,8 @@
     "Recursos": "Resources",
     "Encuestas": "Surveys",
     "Aula virtual": "Virtual classroom",
-    "Volver a la app": "Back to the app"
+    "Volver a la app": "Back to the app",
+    "Menú por rol": "Menu by role"
   },
   "addToGroup": "Add to {group}"
 }
