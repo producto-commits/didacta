@@ -100,11 +100,7 @@ export function RetoPanel({
         <div className="space-y-6">
           {/* Quiz embebido: su aprobación llega al motor por el bus (attempt.passed). */}
           {reto.quizId && enrollmentId ? (
-            <section>
-              <h3 className="mb-2 text-sm font-semibold text-text">
-                <span aria-hidden="true">✓ </span>
-                {t('reto.quizTitle')}
-              </h3>
+            <section aria-label={t('reto.quizTitle')}>
               <QuizPlayer
                 quizId={reto.quizId}
                 enrollmentId={enrollmentId}
@@ -240,13 +236,9 @@ function RetoProgressWidget({
   const stepLabel = (s: StepProgress) =>
     s.type === 'VIDEO' ? t('reto.stepVideo') : s.type === 'QUIZ' ? t('reto.stepQuiz') : s.title;
   return (
+    // El título del reto ya está en la cabecera de la sección: aquí solo el progreso.
     <aside className="rounded-card border border-border bg-surface p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-        {t('reto.label', { position: reto.position })}
-      </p>
-      <h3 className="mt-1 font-display text-lg font-bold text-text">{reto.title}</h3>
-
-      <h4 className="mt-4 text-sm font-semibold text-text">{t('reto.progressTitle')}</h4>
+      <h3 className="text-sm font-semibold text-text">{t('reto.progressTitle')}</h3>
       <ul className="mt-2 space-y-1.5 text-sm">
         {progress.steps.map((s) => (
           <li key={s.key} className="flex items-center justify-between gap-2">

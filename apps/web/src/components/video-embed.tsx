@@ -121,7 +121,19 @@ export function VideoEmbed({
     let maxTime = 0;
     let duration = 0;
     let endedFired = false;
-    const send = (msg: string) => iframe.contentWindow?.postMessage(msg, YOUTUBE_ORIGIN);
+    // Antes de cargar, el iframe es `about:blank` (mismo origen): postMessage
+    // con destino youtube.com pintaría un error en consola. Solo se envía
+    // cuando ya es cross-origin (contentDocument inaccesible = YouTube cargado).
+    const ytLoaded = () => {
+      try {
+        return iframe.contentDocument === null;
+      } catch {
+        return true;
+      }
+    };
+    const send = (msg: string) => {
+      if (ytLoaded()) iframe.contentWindow?.postMessage(msg, YOUTUBE_ORIGIN);
+    };
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== YOUTUBE_ORIGIN || e.source !== iframe.contentWindow) return;
       const info = parseYouTubeInfo(e.data);
