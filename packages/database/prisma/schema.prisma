@@ -4736,6 +4736,25 @@ model ModRetosActionDone {
   @@map("mod_retos_action_done")
 }
 
+/// Historial de entregas de capturas ("Retos enviados" del asistente): una fila
+/// por envío, aprobado o rechazado, con el feedback que vio el alumno.
+model ModRetosSubmission {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  retoId     String   @map("reto_id") @db.Uuid
+  actionKey  String   @map("action_key") @db.VarChar(64)
+  /// APPROVED | REJECTED
+  verdict    String   @db.VarChar(16)
+  feedback   String   @db.VarChar(4000)
+  canal      String?  @db.VarChar(64)
+  storageKey String?  @map("storage_key") @db.VarChar(512)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, userId, createdAt(sort: Desc)])
+  @@map("mod_retos_submission")
+}
+
 /// Reto completado al 100 % por un alumno (y premiado). Idempotencia de
 /// puntos/insignia: una fila por alumno+reto.
 model ModRetosCompletion {
@@ -4766,8 +4785,13 @@ model ModDanaMessage {
   text      String   @db.VarChar(4000)
   /// IN: SENT | FAILED. OUT: RECEIVED.
   status    String   @default("SENT") @db.VarChar(16)
+  /// Conversación a la que pertenece (`conversacionId` que se manda a n8n).
+  /// Se abre una nueva tras DANA_CONVERSATION_TTL_HOURS sin actividad o si el
+  /// alumno pulsa "Nueva conversación".
+  conversationId String? @map("conversation_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([tenantId, userId, createdAt(sort: Desc)])
+  @@index([tenantId, conversationId])
   @@map("mod_dana_message")
 }

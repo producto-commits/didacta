@@ -23,7 +23,11 @@ import type { SessionClaims } from '../../auth/token.service';
 import { parseInbound, secretMatches } from './dana-protocol';
 import { DanaService } from './dana.service';
 
-const sendSchema = z.object({ mensaje: z.string().trim().min(1).max(4000) });
+const sendSchema = z.object({
+  mensaje: z.string().trim().min(1).max(4000),
+  /** Abre una conversación nueva aunque la última siga activa. */
+  nuevaConversacion: z.boolean().optional(),
+});
 type SendDto = z.infer<typeof sendSchema>;
 
 /** Chat del alumno con Dana (asistente de retos → "Hablar con Dana"). */
@@ -45,11 +49,28 @@ export class MeDanaController {
     return { enabled: this.dana.enabled };
   }
 
-  @Get('messages')
-  @ApiOperation({ summary: 'Mi hilo con Dana (opcionalmente solo lo posterior a `since`).' })
-  list(@CurrentUser() user: SessionClaims | undefined, @Query('since') since?: string) {
+  @Get('conversations')
+  @ApiOperation({ summary: 'Mis conversaciones con Dana, la más reciente primero.' })
+  conversations(@CurrentUser() user: SessionClaims | undefined) {
     const u = this.requireAuth(user);
-    return this.dana.list(u.tenantId, u.sub, since?.trim() || undefined);
+    return this.dana.conversations(u.tenantId, u.sub);
+  }
+
+  @Get('messages')
+  @ApiOperation({
+    summary:
+      'Mis mensajes con Dana (opcionalmente de una conversación, o solo lo posterior a `since`).',
+  })
+  list(
+    @CurrentUser() user: SessionClaims | undefined,
+    @Query('since') since?: string,
+    @Query('conversationId') conversationId?: string,
+  ) {
+    const u = this.requireAuth(user);
+    return this.dana.list(u.tenantId, u.sub, {
+      sinceIso: since?.trim() || undefined,
+      conversationId: conversationId?.trim() || undefined,
+    });
   }
 
   @Post('messages')
@@ -61,7 +82,9 @@ export class MeDanaController {
     @Body(new ZodValidationPipe(sendSchema)) dto: SendDto,
   ) {
     const u = this.requireAuth(user);
-    return this.dana.send(u.tenantId, u.sub, dto.mensaje);
+    return this.dana.send(u.tenantId, u.sub, dto.mensaje, {
+      newConversation: dto.nuevaConversacion === true,
+    });
   }
 }
 

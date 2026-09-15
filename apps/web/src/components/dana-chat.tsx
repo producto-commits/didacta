@@ -12,12 +12,24 @@ import { ApiHttpError } from '@/lib/api-client';
 import { danaApi, type DanaMessage } from '@/lib/dana';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
 
+interface Props {
+  /**
+   * Conversación a mostrar. `null` = empezar una nueva (el primer mensaje la
+   * abre). Si es una conversación cerrada, el primer mensaje abre otra.
+   */
+  conversationId: string | null;
+  /** La conversación está cerrada (solo lectura hasta escribir de nuevo). */
+  closed?: boolean;
+  /** Avisa de la conversación real tras enviar (por si se abrió una nueva). */
+  onConversation?: (id: string) => void;
+}
+
 /**
- * Hilo con Dana (agente n8n) dentro del asistente de retos. Las respuestas
- * pueden llegar síncronas (n8n contesta al POST) o por el webhook receptor:
- * mientras haya un mensaje sin respuesta se sondea el hilo cada 3 s.
+ * Hilo con Dana (agente n8n) dentro del asistente. Las respuestas pueden
+ * llegar síncronas (n8n contesta al POST) o por el webhook receptor: mientras
+ * haya un mensaje sin respuesta se sondea el hilo cada 3 s.
  */
-export function DanaChat() {
+export function DanaChat({ conversationId, closed = false, onConversation }: Props) {
   const t = useTranslations('playersContenido');
   const tErrors = useTranslations('errors');
   const [messages, setMessages] = useState<DanaMessage[]>([]);
@@ -25,18 +37,25 @@ export function DanaChat() {
   const [sending, setSending] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [convId, setConvId] = useState<string | null>(conversationId);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    setConvId(conversationId);
+    setMessages([]);
+  }, [conversationId]);
+
   const load = useCallback(async () => {
+    if (!convId) return;
     try {
-      const list = await danaApi.list();
+      const list = await danaApi.list({ conversationId: convId });
       setMessages(list);
       const last = list[list.length - 1];
       setWaiting(Boolean(last && last.direction === 'IN' && last.status !== 'FAILED'));
     } catch {
       /* sin hilo aún */
     }
-  }, []);
+  }, [convId]);
 
   useEffect(() => {
     void load();
@@ -64,8 +83,13 @@ export function DanaChat() {
     setSending(true);
     setError(null);
     try {
-      const res = await danaApi.send(mensaje);
+      // Sin conversación (o cerrada) el primer mensaje abre una nueva.
+      const res = await danaApi.send(mensaje, { nuevaConversacion: !convId || closed });
       setText('');
+      if (res.conversationId !== convId) {
+        setConvId(res.conversationId);
+        onConversation?.(res.conversationId);
+      }
       setMessages((prev) => [...prev, res.sent, ...(res.reply ? [res.reply] : [])]);
       setWaiting(!res.reply);
     } catch (e) {
@@ -76,41 +100,50 @@ export function DanaChat() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-xs text-text-muted">{t('reto.danaIntro')}</p>
-      <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-border bg-surface-2 p-3">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
         {messages.length === 0 ? (
-          <p className="text-sm text-text-muted">{t('reto.danaEmpty')}</p>
+          <div className="mr-8 rounded-2xl rounded-tl-sm bg-surface-2 px-3 py-2 text-sm text-text">
+            <p>{t('reto.danaEmpty')}</p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-wide text-text-muted">
+              {t('reto.danaHer')}
+            </p>
+          </div>
         ) : (
           messages.map((m) => (
             <div
               key={m.id}
               className={
                 m.direction === 'IN'
-                  ? 'ml-6 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white'
-                  : 'mr-6 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text'
+                  ? 'ml-8 rounded-2xl rounded-tr-sm bg-brand-600 px-3 py-2 text-sm text-white'
+                  : 'mr-8 rounded-2xl rounded-tl-sm bg-surface-2 px-3 py-2 text-sm text-text'
               }
             >
-              <p className="mb-0.5 text-[10px] uppercase tracking-wide opacity-70">
+              <p className="whitespace-pre-line">{m.text}</p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-wide opacity-70">
                 {m.direction === 'IN' ? t('reto.danaYou') : t('reto.danaHer')}
               </p>
-              <p className="whitespace-pre-line">{m.text}</p>
             </div>
           ))
         )}
         {waiting ? <p className="text-xs text-text-muted">{t('reto.danaWaiting')}</p> : null}
+        {closed ? (
+          <p className="text-center text-xs text-text-muted">
+            {t('reto.assistantConversationClosed')}
+          </p>
+        ) : null}
         <div ref={bottomRef} />
       </div>
       {error ? (
         <div
           role="alert"
-          className="rounded-lg border border-danger-200 bg-danger-50 p-2 text-xs text-danger-700"
+          className="mx-4 mb-2 rounded-lg border border-danger-200 bg-danger-50 p-2 text-xs text-danger-700"
         >
           {error}
         </div>
       ) : null}
       <form
-        className="flex gap-2"
+        className="flex gap-2 border-t border-border px-3 py-3"
         onSubmit={(e) => {
           e.preventDefault();
           void send();
@@ -122,7 +155,7 @@ export function DanaChat() {
           onChange={(e) => setText(e.target.value)}
           placeholder={t('reto.danaPlaceholder')}
           maxLength={4000}
-          className="h-10 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm"
+          className="h-10 min-w-0 flex-1 rounded-full border border-border bg-surface px-4 text-sm"
           disabled={sending}
         />
         <Button type="submit" size="sm" disabled={sending || !text.trim()}>

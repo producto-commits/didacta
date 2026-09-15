@@ -66,6 +66,15 @@ export class MeRetosController {
     return this.engine.listForUser(u.tenantId, u.sub, moduleKey?.trim() || 'bienvenido');
   }
 
+  @Get('submissions')
+  @ApiOperation({
+    summary: 'Mis entregas de capturas (aprobadas y rechazadas), la última primero.',
+  })
+  submissionsList(@CurrentUser() user: SessionClaims | undefined) {
+    const u = this.requireAuth(user);
+    return this.submissions.listMine(u.tenantId, u.sub);
+  }
+
   @Get('by-lesson/:lessonId')
   @ApiOperation({
     summary: 'El reto de una lección con mi progreso (null si la lección no es un reto).',

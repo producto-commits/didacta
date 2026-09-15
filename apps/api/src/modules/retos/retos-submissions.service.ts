@@ -134,11 +134,18 @@ export class RetosSubmissionsService {
     const valid = verdict?.valido === true;
 
     if (!valid) {
+      const feedback =
+        verdict?.feedback ||
+        'No pudimos validar esta captura. Revisa los pasos y sube una imagen que muestre claramente lo que pide la acción.';
+      await this.record(tenantId, userId, retoId, actionKey, {
+        verdict: 'REJECTED',
+        feedback,
+        canal: verdict?.canal ?? null,
+        storageKey,
+      });
       return {
         valid: false,
-        feedback:
-          verdict?.feedback ||
-          'No pudimos validar esta captura. Revisa los pasos y sube una imagen que muestre claramente lo que pide la acción.',
+        feedback,
         canal: verdict?.canal ?? null,
         count,
         needed,
@@ -157,10 +164,17 @@ export class RetosSubmissionsService {
       submission: count + 1,
     });
     const step = result.progress.steps.find((s) => s.key === actionKey);
+    const feedback =
+      cfg.feedbackMode === 'fixed' && cfg.fixedMessage ? cfg.fixedMessage : verdict.feedback;
+    await this.record(tenantId, userId, retoId, actionKey, {
+      verdict: 'APPROVED',
+      feedback,
+      canal: verdict.canal,
+      storageKey,
+    });
     return {
       valid: true,
-      feedback:
-        cfg.feedbackMode === 'fixed' && cfg.fixedMessage ? cfg.fixedMessage : verdict.feedback,
+      feedback,
       canal: verdict.canal,
       count: step?.count ?? count + 1,
       needed,
@@ -169,4 +183,78 @@ export class RetosSubmissionsService {
       retoJustCompleted: result.justCompleted,
     };
   }
+
+  /** Historial de entregas del alumno ("Retos enviados"), la más reciente primero. */
+  async listMine(tenantId: string, userId: string): Promise<SubmissionView[]> {
+    const rows = await this.prisma.modRetosSubmission.findMany({
+      where: { tenantId, userId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    if (rows.length === 0) return [];
+    const retos = await this.prisma.modRetosReto.findMany({
+      where: { tenantId, id: { in: [...new Set(rows.map((r) => r.retoId))] } },
+      include: { actions: { select: { key: true, title: true } } },
+    });
+    const byId = new Map(retos.map((r) => [r.id, r]));
+    return rows.map((r) => {
+      const reto = byId.get(r.retoId);
+      return {
+        id: r.id,
+        retoId: r.retoId,
+        retoPosition: reto?.position ?? 0,
+        retoTitle: reto?.title ?? '',
+        actionKey: r.actionKey,
+        actionTitle: reto?.actions.find((a) => a.key === r.actionKey)?.title ?? r.actionKey,
+        verdict: r.verdict === 'APPROVED' ? 'APPROVED' : 'REJECTED',
+        feedback: r.feedback,
+        canal: r.canal,
+        createdAt: r.createdAt.toISOString(),
+      };
+    });
+  }
+
+  /** El historial nunca bloquea una entrega: si falla el insert, se registra y sigue. */
+  private async record(
+    tenantId: string,
+    userId: string,
+    retoId: string,
+    actionKey: string,
+    data: {
+      verdict: 'APPROVED' | 'REJECTED';
+      feedback: string;
+      canal: string | null;
+      storageKey: string | null;
+    },
+  ) {
+    try {
+      await this.prisma.modRetosSubmission.create({
+        data: {
+          tenantId,
+          userId,
+          retoId,
+          actionKey,
+          verdict: data.verdict,
+          feedback: data.feedback.slice(0, 4000),
+          canal: data.canal ? data.canal.slice(0, 64) : null,
+          storageKey: data.storageKey,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(`No se pudo guardar el historial de entrega ${actionKey}: ${String(err)}`);
+    }
+  }
+}
+
+export interface SubmissionView {
+  id: string;
+  retoId: string;
+  retoPosition: number;
+  retoTitle: string;
+  actionKey: string;
+  actionTitle: string;
+  verdict: 'APPROVED' | 'REJECTED';
+  feedback: string;
+  canal: string | null;
+  createdAt: string;
 }

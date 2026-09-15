@@ -90,6 +90,20 @@ export interface EvaluateResult {
   justCompleted: boolean;
 }
 
+/** Una entrega de captura del historial ("Retos enviados"). */
+export interface RetoSubmission {
+  id: string;
+  retoId: string;
+  retoPosition: number;
+  retoTitle: string;
+  actionKey: string;
+  actionTitle: string;
+  verdict: 'APPROVED' | 'REJECTED';
+  feedback: string;
+  canal: string | null;
+  createdAt: string;
+}
+
 function bearer(): string | undefined {
   return authStorage.getAccessToken() ?? undefined;
 }
@@ -103,6 +117,9 @@ export const retosApi = {
   },
   byLesson(lessonId: string): Promise<{ reto: LessonReto | null }> {
     return apiFetch(`${BASE}/by-lesson/${lessonId}`, { method: 'GET' }, bearer());
+  },
+  submissions(): Promise<RetoSubmission[]> {
+    return apiFetch(`${BASE}/submissions`, { method: 'GET' }, bearer());
   },
   videoComplete(retoId: string): Promise<EvaluateResult> {
     return apiFetch(`${BASE}/${retoId}/video-complete`, { method: 'POST', body: '{}' }, bearer());

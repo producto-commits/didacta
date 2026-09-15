@@ -3,29 +3,49 @@
  * SPDX-License-Identifier: LicenseRef-Didacta-Sustainable-Use
  */
 
+import { randomUUID } from 'node:crypto';
 import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   buildOutboundPayload,
   danaConfigFromEnv,
   parseSyncReply,
+  resolveConversationId,
   type DanaConfig,
   type InboundMessage,
 } from './dana-protocol';
 
 export interface DanaMessageView {
   id: string;
+  conversationId: string | null;
   direction: 'IN' | 'OUT';
   text: string;
   status: string;
   createdAt: string;
 }
 
+export interface DanaConversationView {
+  id: string;
+  /** Primer mensaje del alumno (título del hilo en la lista). */
+  title: string;
+  lastText: string;
+  lastDirection: 'IN' | 'OUT';
+  lastAt: string;
+  count: number;
+  /** Sigue abierta: el siguiente mensaje se colgará de ella. */
+  open: boolean;
+}
+
 /**
- * "Hablar con Dana" (docs/retos/plan-retos.md §3.5, Fase E): relé entre el
+ * "Hablar con Dana" (docs/retos/plan-retos.md §3.5, Fase E/F): relé entre el
  * alumno y el agente n8n de Dropi Academy. Guarda cada mensaje (IN/OUT) para
  * pintar el hilo y para poder casar la respuesta asíncrona de n8n con el
- * alumno correcto (n8n solo devuelve `{ correo, mensaje }`).
+ * alumno correcto (n8n devuelve `{ correo, mensaje, conversacionId? }`).
+ *
+ * Conversaciones: cada mensaje lleva un `conversacionId` que se manda a n8n
+ * (memoria por sesión del agente). Se reutiliza mientras haya actividad en las
+ * últimas DANA_CONVERSATION_TTL_HOURS (24 por defecto); después, o si el
+ * alumno pulsa "Nueva conversación", se abre otra.
  */
 @Injectable()
 export class DanaService {
@@ -42,12 +62,17 @@ export class DanaService {
     return this.config?.secret ?? null;
   }
 
-  async list(tenantId: string, userId: string, sinceIso?: string): Promise<DanaMessageView[]> {
-    const since = sinceIso ? new Date(sinceIso) : null;
+  async list(
+    tenantId: string,
+    userId: string,
+    opts: { sinceIso?: string; conversationId?: string } = {},
+  ): Promise<DanaMessageView[]> {
+    const since = opts.sinceIso ? new Date(opts.sinceIso) : null;
     const rows = await this.prisma.modDanaMessage.findMany({
       where: {
         tenantId,
         userId,
+        ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
         ...(since && !Number.isNaN(since.getTime()) ? { createdAt: { gt: since } } : {}),
       },
       orderBy: { createdAt: 'asc' },
@@ -56,12 +81,60 @@ export class DanaService {
     return rows.map(toView);
   }
 
+  /** Conversaciones del alumno, la más reciente primero. */
+  async conversations(tenantId: string, userId: string): Promise<DanaConversationView[]> {
+    const rows = await this.prisma.modDanaMessage.findMany({
+      where: { tenantId, userId, conversationId: { not: null } },
+      orderBy: { createdAt: 'asc' },
+      take: 1000,
+      select: {
+        conversationId: true,
+        direction: true,
+        text: true,
+        createdAt: true,
+      },
+    });
+    const map = new Map<string, DanaConversationView>();
+    for (const r of rows) {
+      const id = r.conversationId!;
+      const dir = r.direction === 'OUT' ? 'OUT' : 'IN';
+      const cur = map.get(id);
+      if (!cur) {
+        map.set(id, {
+          id,
+          title: r.text.slice(0, 80),
+          lastText: r.text,
+          lastDirection: dir,
+          lastAt: r.createdAt.toISOString(),
+          count: 1,
+          open: false,
+        });
+      } else {
+        cur.lastText = r.text;
+        cur.lastDirection = dir;
+        cur.lastAt = r.createdAt.toISOString();
+        cur.count++;
+      }
+    }
+    const list = [...map.values()].sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+    const ttl = this.config?.conversationTtlHours ?? 24;
+    if (list[0]) {
+      list[0].open = Date.now() - new Date(list[0].lastAt).getTime() <= ttl * 3_600_000;
+    }
+    return list;
+  }
+
   /**
    * Envía el mensaje del alumno a n8n. Si n8n responde síncronamente con texto,
    * se guarda como OUT y se devuelve; si no, la respuesta llegará por el
    * webhook receptor y el cliente la verá al refrescar.
    */
-  async send(tenantId: string, userId: string, mensaje: string) {
+  async send(
+    tenantId: string,
+    userId: string,
+    mensaje: string,
+    opts: { newConversation?: boolean } = {},
+  ) {
     if (!this.config) {
       throw new NotFoundException({ message: 'Dana no está configurada.', code: 'DANA_DISABLED' });
     }
@@ -72,10 +145,24 @@ export class DanaService {
     if (!user)
       throw new NotFoundException({ message: 'Usuario no encontrado.', code: 'USER_NOT_FOUND' });
 
+    const last = await this.prisma.modDanaMessage.findFirst({
+      where: { tenantId, userId },
+      orderBy: { createdAt: 'desc' },
+      select: { conversationId: true, createdAt: true },
+    });
+    const conversationId = resolveConversationId(
+      last,
+      new Date(),
+      this.config.conversationTtlHours,
+      randomUUID,
+      opts.newConversation === true,
+    );
+
     const inbound = await this.prisma.modDanaMessage.create({
       data: {
         tenantId,
         userId,
+        conversationId,
         direction: 'IN',
         text: mensaje.trim().slice(0, 4000),
         status: 'SENT',
@@ -85,6 +172,7 @@ export class DanaService {
     const payload = buildOutboundPayload({
       mensaje,
       correo: user.email,
+      conversacionId: conversationId,
       userId,
       tenantId,
       messageId: inbound.id,
@@ -128,19 +216,46 @@ export class DanaService {
     let outbound: DanaMessageView | null = null;
     if (reply) {
       const row = await this.prisma.modDanaMessage.create({
-        data: { tenantId, userId, direction: 'OUT', text: reply, status: 'RECEIVED' },
+        data: {
+          tenantId,
+          userId,
+          conversationId,
+          direction: 'OUT',
+          text: reply,
+          status: 'RECEIVED',
+        },
       });
       outbound = toView(row);
     }
-    return { sent: toView(inbound), reply: outbound };
+    return { sent: toView(inbound), reply: outbound, conversationId };
   }
 
   /**
-   * Callback de n8n: `{ correo, mensaje }`. Se casa con el alumno por correo;
-   * si el mismo correo existe en varios tenants, gana el que tenga el mensaje
-   * IN más reciente (es a quien Dana está contestando).
+   * Callback de n8n: `{ correo, mensaje, conversacionId? }`. Con conversacionId
+   * la respuesta va a esa conversación; si no, se casa con el alumno por correo
+   * y se cuelga de su conversación más reciente. Si el mismo correo existe en
+   * varios tenants, gana el que tenga el mensaje IN más reciente.
    */
   async receive(msg: InboundMessage): Promise<{ ok: boolean; userId?: string }> {
+    if (msg.conversacionId) {
+      const byConv = await this.prisma.modDanaMessage.findFirst({
+        where: { conversationId: msg.conversacionId },
+        select: { userId: true, tenantId: true, conversationId: true },
+      });
+      if (byConv) {
+        await this.prisma.modDanaMessage.create({
+          data: {
+            tenantId: byConv.tenantId,
+            userId: byConv.userId,
+            conversationId: byConv.conversationId,
+            direction: 'OUT',
+            text: msg.mensaje,
+            status: 'RECEIVED',
+          },
+        });
+        return { ok: true, userId: byConv.userId };
+      }
+    }
     const users = await this.prisma.user.findMany({
       where: { email: { equals: msg.correo, mode: 'insensitive' } },
       select: { id: true, tenantId: true },
@@ -149,19 +264,19 @@ export class DanaService {
       this.logger.warn(`Dana: callback para correo desconocido ${msg.correo}`);
       return { ok: false };
     }
-    let target = users[0]!;
-    if (users.length > 1) {
-      const latest = await this.prisma.modDanaMessage.findFirst({
-        where: { userId: { in: users.map((u) => u.id) }, direction: 'IN' },
-        orderBy: { createdAt: 'desc' },
-        select: { userId: true, tenantId: true },
-      });
-      if (latest) target = { id: latest.userId, tenantId: latest.tenantId };
-    }
+    const latest = await this.prisma.modDanaMessage.findFirst({
+      where: { userId: { in: users.map((u) => u.id) }, direction: 'IN' },
+      orderBy: { createdAt: 'desc' },
+      select: { userId: true, tenantId: true, conversationId: true },
+    });
+    const target = latest
+      ? { id: latest.userId, tenantId: latest.tenantId, conversationId: latest.conversationId }
+      : { id: users[0]!.id, tenantId: users[0]!.tenantId, conversationId: null };
     await this.prisma.modDanaMessage.create({
       data: {
         tenantId: target.tenantId,
         userId: target.id,
+        conversationId: target.conversationId,
         direction: 'OUT',
         text: msg.mensaje,
         status: 'RECEIVED',
@@ -173,6 +288,7 @@ export class DanaService {
 
 function toView(r: {
   id: string;
+  conversationId: string | null;
   direction: string;
   text: string;
   status: string;
@@ -180,6 +296,7 @@ function toView(r: {
 }): DanaMessageView {
   return {
     id: r.id,
+    conversationId: r.conversationId,
     direction: r.direction === 'OUT' ? 'OUT' : 'IN',
     text: r.text,
     status: r.status,

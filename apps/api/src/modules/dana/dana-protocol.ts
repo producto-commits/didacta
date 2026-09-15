@@ -22,22 +22,28 @@ export interface DanaConfig {
   webhookUrl: string;
   secret: string | null;
   timeoutMs: number;
+  /** Horas sin actividad tras las que el siguiente mensaje abre otra conversación. */
+  conversationTtlHours: number;
 }
 
 export function danaConfigFromEnv(env: NodeJS.ProcessEnv = process.env): DanaConfig | null {
   const webhookUrl = env['DANA_WEBHOOK_URL']?.trim();
   if (!webhookUrl) return null;
   const timeout = Number(env['DANA_TIMEOUT_MS']);
+  const ttl = Number(env['DANA_CONVERSATION_TTL_HOURS']);
   return {
     webhookUrl,
     secret: env['DANA_WEBHOOK_SECRET']?.trim() || null,
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 20_000,
+    conversationTtlHours: Number.isFinite(ttl) && ttl > 0 ? ttl : 24,
   };
 }
 
 export interface OutboundPayload {
   mensaje: string;
   correo: string;
+  /** Conversación (hilo) del alumno: n8n puede usarlo como memoria por sesión. */
+  conversacionId: string;
   userId: string;
   tenantId: string;
   messageId: string;
@@ -48,10 +54,28 @@ export function buildOutboundPayload(p: OutboundPayload): OutboundPayload {
   return {
     mensaje: p.mensaje.trim().slice(0, 4000),
     correo: p.correo.trim().toLowerCase(),
+    conversacionId: p.conversacionId,
     userId: p.userId,
     tenantId: p.tenantId,
     messageId: p.messageId,
   };
+}
+
+/**
+ * Decide la conversación del siguiente mensaje: se reutiliza la última si tuvo
+ * actividad hace menos de `ttlHours`; si no (o si el alumno pidió una nueva),
+ * se abre otra. Puro para testear.
+ */
+export function resolveConversationId(
+  last: { conversationId: string | null; createdAt: Date } | null,
+  now: Date,
+  ttlHours: number,
+  newId: () => string,
+  forceNew = false,
+): string {
+  if (forceNew || !last || !last.conversationId) return newId();
+  const ageMs = now.getTime() - last.createdAt.getTime();
+  return ageMs <= ttlHours * 3_600_000 ? last.conversationId : newId();
 }
 
 /** Extrae una respuesta síncrona `{ mensaje }` (o `{ respuesta }`/`{ output }`) si n8n la devuelve. */
@@ -68,7 +92,11 @@ export function parseSyncReply(body: unknown): string | null {
 export interface InboundMessage {
   correo: string;
   mensaje: string;
+  /** Si n8n lo devuelve, la respuesta se cuelga de esa conversación. */
+  conversacionId: string | null;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Valida el callback de n8n. Devuelve null si falta correo o mensaje. */
 export function parseInbound(body: unknown): InboundMessage | null {
@@ -77,7 +105,12 @@ export function parseInbound(body: unknown): InboundMessage | null {
   const correo = typeof o['correo'] === 'string' ? o['correo'].trim().toLowerCase() : '';
   const mensaje = typeof o['mensaje'] === 'string' ? o['mensaje'].trim() : '';
   if (!correo || !correo.includes('@') || !mensaje) return null;
-  return { correo, mensaje: mensaje.slice(0, 4000) };
+  const conv = typeof o['conversacionId'] === 'string' ? o['conversacionId'].trim() : '';
+  return {
+    correo,
+    mensaje: mensaje.slice(0, 4000),
+    conversacionId: UUID_RE.test(conv) ? conv.toLowerCase() : null,
+  };
 }
 
 /** Comparación en tiempo constante del secreto compartido (hash para igualar longitudes). */
