@@ -26,6 +26,12 @@ interface Props {
   onRefresh: () => Promise<LessonReto | null>;
   /** Navegar a otra lección del curso (CTA "Ir al siguiente reto"). */
   onSelectLesson?: (lessonId: string) => void;
+  /**
+   * `column`: tercera columna de la página del curso (Contenido | Video | Reto),
+   * todo apilado con el progreso arriba. `wide`: sección a todo lo ancho bajo
+   * el video (pantallas sin sitio para la tercera columna).
+   */
+  layout?: 'wide' | 'column';
 }
 
 /**
@@ -44,7 +50,9 @@ export function RetoPanel({
   lessonTitle,
   onRefresh,
   onSelectLesson,
+  layout = 'wide',
 }: Props) {
+  const column = layout === 'column';
   const t = useTranslations('playersContenido');
   const tErrors = useTranslations('errors');
   const [error, setError] = useState<string | null>(null);
@@ -79,11 +87,17 @@ export function RetoPanel({
   }
 
   return (
-    // SECCIÓN PROPIA debajo del video, a todo lo ancho (decisión de Dropi):
-    // el video queda como protagonista arriba; aquí el reto usa toda la
-    // pantalla: evaluación y acciones amplias a la izquierda, progreso a la
-    // derecha.
-    <section className="mt-8 border-t border-border pt-6">
+    // Decisión de Dropi: el reto es una SECCIÓN PROPIA, nunca dentro de la del
+    // video. En `column` es la tercera columna de la página (progreso arriba,
+    // luego evaluación y acciones); en `wide` va debajo del video a todo lo
+    // ancho (evaluación a la izquierda, progreso a la derecha).
+    <section
+      className={
+        column
+          ? 'rounded-card border border-border bg-surface p-5 shadow-sm'
+          : 'mt-8 border-t border-border pt-6'
+      }
+    >
       <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">
@@ -96,7 +110,18 @@ export function RetoPanel({
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+      {column ? (
+        // En columna el progreso va arriba, antes de la evaluación y las acciones.
+        <div className="mb-6">
+          <RetoProgressWidget data={data} t={t} onSelectLesson={onSelectLesson} flat />
+        </div>
+      ) : null}
+
+      <div
+        className={
+          column ? 'grid gap-6' : 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]'
+        }
+      >
         <div className="space-y-6">
           {/* Quiz embebido: su aprobación llega al motor por el bus (attempt.passed). */}
           {reto.quizId && enrollmentId ? (
@@ -217,7 +242,7 @@ export function RetoPanel({
         </div>
 
         {/* Progreso del reto y del módulo (widget del spec), a la derecha. */}
-        <RetoProgressWidget data={data} t={t} onSelectLesson={onSelectLesson} />
+        {!column ? <RetoProgressWidget data={data} t={t} onSelectLesson={onSelectLesson} /> : null}
       </div>
     </section>
   );
@@ -227,17 +252,26 @@ function RetoProgressWidget({
   data,
   t,
   onSelectLesson,
+  flat = false,
 }: {
   data: LessonReto;
   t: ReturnType<typeof useTranslations<'playersContenido'>>;
   onSelectLesson?: (lessonId: string) => void;
+  /** Sin tarjeta propia (ya está dentro de la tarjeta de la columna). */
+  flat?: boolean;
 }) {
   const { reto, progress } = data;
   const stepLabel = (s: StepProgress) =>
     s.type === 'VIDEO' ? t('reto.stepVideo') : s.type === 'QUIZ' ? t('reto.stepQuiz') : s.title;
   return (
     // El título del reto ya está en la cabecera de la sección: aquí solo el progreso.
-    <aside className="rounded-card border border-border bg-surface p-5 shadow-sm">
+    <aside
+      className={
+        flat
+          ? 'rounded-lg bg-surface-2 p-4'
+          : 'rounded-card border border-border bg-surface p-5 shadow-sm'
+      }
+    >
       <h3 className="text-sm font-semibold text-text">{t('reto.progressTitle')}</h3>
       <ul className="mt-2 space-y-1.5 text-sm">
         {progress.steps.map((s) => (

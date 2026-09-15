@@ -511,7 +511,17 @@ function Shell({
                 después de las utilidades sin prefijo — por eso aquí es `lg:pt-6`
                 (solo top), nunca `lg:py-*` ni `lg:pb-*`. */}
             <main className="flex-1 px-4 py-5 pb-24 sm:px-6 lg:px-8 lg:pt-6">
-              <div className="mx-auto max-w-[1280px]">{children}</div>
+              {/* La página de un curso (Contenido | Video | Reto) usa toda la
+                  pantalla; el resto mantiene el ancho de lectura. */}
+              <div
+                className={
+                  /^\/cursos\/[^/]+/.test(pathname ?? '')
+                    ? 'mx-auto max-w-[1920px]'
+                    : 'mx-auto max-w-[1280px]'
+                }
+              >
+                {children}
+              </div>
             </main>
           </div>
 

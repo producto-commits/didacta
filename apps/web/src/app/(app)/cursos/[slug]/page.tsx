@@ -59,6 +59,10 @@ export default function CourseAlumnoPage() {
    */
   const [lessonPosition, setLessonPosition] = useState<number | undefined>(undefined);
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
+  // Tercera columna (reto): el player avisa si la lección activa tiene reto y
+  // pinta el panel dentro de `retoHost` por portal.
+  const [hasReto, setHasReto] = useState(false);
+  const [retoHost, setRetoHost] = useState<HTMLElement | null>(null);
   const [progressByLesson, setProgressByLesson] = useState<Record<string, boolean>>({});
   // Posición de reanudación por lección (segundos) desde el backend, para
   // arrancar el vídeo donde el alumno lo dejó. 0/ausente = desde el inicio.
@@ -535,7 +539,15 @@ export default function CourseAlumnoPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      {/* Con reto: tres secciones en fila (Contenido | Video | Reto). Sin reto:
+          las dos de siempre. Por debajo de xl el reto baja bajo el video. */}
+      <div
+        className={
+          hasReto
+            ? 'grid gap-6 lg:grid-cols-[280px_1fr] xl:grid-cols-[280px_minmax(0,1fr)_minmax(380px,440px)]'
+            : 'grid gap-6 lg:grid-cols-[320px_1fr]'
+        }
+      >
         <Card className="min-w-0 self-start p-0 lg:max-h-[78dvh] lg:overflow-auto">
           <CardContent className="p-5">
             <h3 className="font-display text-base font-semibold text-text">{t('contentTitle')}</h3>
@@ -702,6 +714,8 @@ export default function CourseAlumnoPage() {
                 courseId={course.id}
                 enrollmentId={enrollment.id}
                 onSelectLesson={setActiveLessonId}
+                retoHost={retoHost}
+                onRetoChange={setHasReto}
                 initialResumePositionSec={resumeByLesson[activeLesson.id] ?? 0}
                 initialCompleted={Boolean(progressByLesson[activeLesson.id])}
                 onPosition={setLessonPosition}
@@ -752,6 +766,15 @@ export default function CourseAlumnoPage() {
             </Card>
           )}
         </main>
+
+        {/* Tercera sección: el reto de la lección (lo pinta el player por portal). */}
+        {hasReto ? (
+          <aside
+            id="curso-reto"
+            ref={setRetoHost}
+            className="min-w-0 self-start xl:sticky xl:top-6 xl:max-h-[calc(100dvh-3rem)] xl:overflow-auto"
+          />
+        ) : null}
       </div>
     </section>
   );

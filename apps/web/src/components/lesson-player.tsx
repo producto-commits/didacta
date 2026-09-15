@@ -7,6 +7,7 @@
 
 import { useTranslations } from 'next-intl';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { QuizPlayer } from '@/components/quiz-player';
 import { ProfileQuestion, parseProfileQuestion } from '@/components/profile-question';
 import { AiTutorPanel } from '@/components/ai-tutor-panel';
@@ -68,6 +69,13 @@ interface Props {
   preview?: boolean;
   /** Navegar a otra lección (CTA "Ir al siguiente reto" del panel del reto). */
   onSelectLesson?: (lessonId: string) => void;
+  /**
+   * Contenedor externo donde pintar el reto (tercera columna de la página del
+   * curso). Si no se da, el reto se pinta debajo del contenido de la lección.
+   */
+  retoHost?: HTMLElement | null;
+  /** Avisa a la página si la lección activa tiene reto (para abrir la columna). */
+  onRetoChange?: (hasReto: boolean) => void;
 }
 
 // Cada cuánto reportamos tiempo visto al backend. Subido de 30→60s para
@@ -109,6 +117,8 @@ export function LessonPlayer({
   onPosition,
   preview = false,
   onSelectLesson,
+  retoHost,
+  onRetoChange,
 }: Props) {
   const t = useTranslations('playersContenido');
   // Acción con IA del reto (Retos 2/3): se completa con ≥1 consulta a Danna.
@@ -154,6 +164,13 @@ export function LessonPlayer({
   useEffect(() => {
     void refreshReto();
   }, [refreshReto]);
+  // La página abre la tercera columna solo si la lección tiene reto.
+  const hasReto = lessonReto !== null;
+  useEffect(() => {
+    onRetoChange?.(hasReto);
+    // onRetoChange no va en deps: se recrea cada render de la página.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasReto]);
 
   async function onVideoEnded() {
     if (!lessonReto || preview) return;
@@ -437,17 +454,25 @@ export function LessonPlayer({
           onQuizPassed={() => setCompleted(true)}
         />
 
-        {lessonReto ? (
-          <RetoPanel
-            data={lessonReto}
-            courseId={courseId}
-            enrollmentId={enrollmentId}
-            lessonId={lesson.id}
-            lessonTitle={lesson.title}
-            onRefresh={refreshReto}
-            onSelectLesson={onSelectLesson}
-          />
-        ) : null}
+        {lessonReto
+          ? (() => {
+              const panel = (
+                <RetoPanel
+                  data={lessonReto}
+                  courseId={courseId}
+                  enrollmentId={enrollmentId}
+                  lessonId={lesson.id}
+                  lessonTitle={lesson.title}
+                  onRefresh={refreshReto}
+                  onSelectLesson={onSelectLesson}
+                  layout={retoHost ? 'column' : 'wide'}
+                />
+              );
+              // Tercera columna de la página del curso (Contenido | Video | Reto):
+              // el reto se pinta ahí por portal; sin contenedor, va bajo el video.
+              return retoHost ? createPortal(panel, retoHost) : panel;
+            })()
+          : null}
 
         {!lessonReto
           ? (() => {
