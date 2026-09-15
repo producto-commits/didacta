@@ -126,7 +126,6 @@ export function RetosAssistant() {
               firstName={firstName}
               danaEnabled={danaEnabled}
               hasRetos={retos.length > 0}
-              data={data}
               onDana={openDana}
               onReport={() => {
                 setTab('retos');
@@ -377,7 +376,6 @@ function HomeTab({
   firstName,
   danaEnabled,
   hasRetos,
-  data,
   onDana,
   onReport,
   onClose,
@@ -386,7 +384,6 @@ function HomeTab({
   firstName: string;
   danaEnabled: boolean;
   hasRetos: boolean;
-  data: MyRetos | null;
   onDana: () => void;
   onReport: () => void;
   onClose: () => void;
@@ -423,21 +420,6 @@ function HomeTab({
             hint={t('reto.assistantReportCardHint')}
             onClick={onReport}
           />
-        ) : null}
-        {data && data.retos.length > 0 ? (
-          <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
-            <p className="text-sm font-semibold text-text">{t('reto.assistantProgressCard')}</p>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3">
-              <div
-                className="h-full rounded-full bg-brand-600"
-                style={{ width: `${Math.min(100, data.modulePercent)}%` }}
-              />
-            </div>
-            <p className="mt-1.5 text-xs text-text-muted tabular-nums">
-              {t('reto.modulePercent')}: {data.modulePercent} % ·{' '}
-              {t('reto.moduleRetos', { completed: data.completedCount, total: data.retos.length })}
-            </p>
-          </div>
         ) : null}
       </div>
     </div>
