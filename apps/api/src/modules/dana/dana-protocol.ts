@@ -18,24 +18,32 @@ import { createHash, timingSafeEqual } from 'node:crypto';
  * `{ mensaje }`: si lo hace, se guarda como respuesta al instante.
  */
 
+/** Inactividad por defecto tras la que la conversación se cierra: 30 minutos. */
+export const DANA_DEFAULT_TTL_MS = 30 * 60_000;
+
 export interface DanaConfig {
   webhookUrl: string;
   secret: string | null;
   timeoutMs: number;
-  /** Horas sin actividad tras las que el siguiente mensaje abre otra conversación. */
-  conversationTtlHours: number;
+  /** Milisegundos sin actividad tras los que la conversación se cierra. */
+  conversationTtlMs: number;
 }
 
 export function danaConfigFromEnv(env: NodeJS.ProcessEnv = process.env): DanaConfig | null {
   const webhookUrl = env['DANA_WEBHOOK_URL']?.trim();
   if (!webhookUrl) return null;
   const timeout = Number(env['DANA_TIMEOUT_MS']);
-  const ttl = Number(env['DANA_CONVERSATION_TTL_HOURS']);
+  // Ventana de inactividad: se prefiere en MINUTOS; se acepta el legacy en horas.
+  const minutes = Number(env['DANA_CONVERSATION_TTL_MINUTES']);
+  const hours = Number(env['DANA_CONVERSATION_TTL_HOURS']);
+  let conversationTtlMs = DANA_DEFAULT_TTL_MS;
+  if (Number.isFinite(minutes) && minutes > 0) conversationTtlMs = minutes * 60_000;
+  else if (Number.isFinite(hours) && hours > 0) conversationTtlMs = hours * 3_600_000;
   return {
     webhookUrl,
     secret: env['DANA_WEBHOOK_SECRET']?.trim() || null,
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 20_000,
-    conversationTtlHours: Number.isFinite(ttl) && ttl > 0 ? ttl : 24,
+    conversationTtlMs,
   };
 }
 
@@ -62,20 +70,47 @@ export function buildOutboundPayload(p: OutboundPayload): OutboundPayload {
 }
 
 /**
- * Decide la conversación del siguiente mensaje: se reutiliza la última si tuvo
- * actividad hace menos de `ttlHours`; si no (o si el alumno pidió una nueva),
- * se abre otra. Puro para testear.
+ * Decide la conversación del siguiente mensaje: se reutiliza la última si NO
+ * está cerrada y tuvo actividad hace menos de `reuseWindowMs`; si no (o si el
+ * alumno pidió una nueva), se abre otra. Puro para testear.
  */
 export function resolveConversationId(
-  last: { conversationId: string | null; createdAt: Date } | null,
+  last: { conversationId: string | null; createdAt: Date; closed?: boolean } | null,
   now: Date,
-  ttlHours: number,
+  reuseWindowMs: number,
   newId: () => string,
   forceNew = false,
 ): string {
-  if (forceNew || !last || !last.conversationId) return newId();
+  if (forceNew || !last || !last.conversationId || last.closed) return newId();
   const ageMs = now.getTime() - last.createdAt.getTime();
-  return ageMs <= ttlHours * 3_600_000 ? last.conversationId : newId();
+  return ageMs <= reuseWindowMs ? last.conversationId : newId();
+}
+
+/** Estados de un mensaje. NUDGE/CLOSED son mensajes de sistema (OUT). */
+export const DANA_NUDGE_STATUS = 'NUDGE';
+export const DANA_CLOSED_STATUS = 'CLOSED';
+
+export type InactivityAction = 'nudge' | 'close' | null;
+
+/**
+ * Regla de inactividad, mirando SOLO el último mensaje de la conversación:
+ *   - ya cerrada → nada.
+ *   - último = aviso "¿sigues ahí?" y pasó otra ventana sin respuesta → cerrar.
+ *   - último = actividad real y pasó una ventana → avisar (o cerrar directo si
+ *     se pasó también la segunda ventana, p. ej. el barrido estuvo caído).
+ * `ttlMs` es la ventana de inactividad (30 min por defecto). Pura para testear.
+ */
+export function decideInactivityAction(
+  last: { status: string; createdAt: Date },
+  now: Date,
+  ttlMs: number,
+): InactivityAction {
+  const idle = now.getTime() - last.createdAt.getTime();
+  if (last.status === DANA_CLOSED_STATUS) return null;
+  if (last.status === DANA_NUDGE_STATUS) return idle >= ttlMs ? 'close' : null;
+  if (idle >= 2 * ttlMs) return 'close';
+  if (idle >= ttlMs) return 'nudge';
+  return null;
 }
 
 /** Extrae una respuesta síncrona `{ mensaje }` (o `{ respuesta }`/`{ output }`) si n8n la devuelve. */

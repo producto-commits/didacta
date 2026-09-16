@@ -10,11 +10,20 @@ import { runAsTenant, runGlobalWithoutTenant } from '../../tenancy/tenant-contex
 import {
   buildOutboundPayload,
   danaConfigFromEnv,
+  DANA_CLOSED_STATUS,
+  DANA_NUDGE_STATUS,
+  decideInactivityAction,
   parseSyncReply,
   resolveConversationId,
   type DanaConfig,
   type InboundMessage,
 } from './dana-protocol';
+
+/** Texto del aviso "¿sigues ahí?" y del cierre por inactividad (mensajes OUT). */
+const DANA_NUDGE_TEXT =
+  '👋 ¿Sigues ahí? Si necesitas algo más, escríbeme. Si no, cerraré esta conversación en unos minutos.';
+const DANA_CLOSED_TEXT =
+  'Conversación cerrada por inactividad. Escribe un mensaje cuando quieras y empezamos de nuevo. 👋';
 
 export interface DanaMessageView {
   id: string;
@@ -44,9 +53,11 @@ export interface DanaConversationView {
  * alumno correcto (n8n devuelve `{ correo, mensaje, conversacionId? }`).
  *
  * Conversaciones: cada mensaje lleva un `conversacionId` que se manda a n8n
- * (memoria por sesión del agente). Se reutiliza mientras haya actividad en las
- * últimas DANA_CONVERSATION_TTL_HOURS (24 por defecto); después, o si el
- * alumno pulsa "Nueva conversación", se abre otra.
+ * (memoria por sesión del agente). Inactividad (DANA_CONVERSATION_TTL_MINUTES,
+ * 30 por defecto): tras una ventana en silencio Dana pregunta "¿sigues ahí?" y,
+ * si pasa otra ventana sin respuesta, la conversación se cierra por inactividad
+ * (lo hace `sweepInactive`, disparado por el worker). El alumno también puede
+ * pulsar "Nueva conversación" para abrir otra.
  */
 @Injectable()
 export class DanaService {
@@ -92,13 +103,17 @@ export class DanaService {
         conversationId: true,
         direction: true,
         text: true,
+        status: true,
         createdAt: true,
       },
     });
     const map = new Map<string, DanaConversationView>();
+    // Título = primer mensaje real del alumno; los OUT de sistema no lo pisan.
+    const lastStatus = new Map<string, string>();
     for (const r of rows) {
       const id = r.conversationId!;
       const dir = r.direction === 'OUT' ? 'OUT' : 'IN';
+      lastStatus.set(id, r.status);
       const cur = map.get(id);
       if (!cur) {
         map.set(id, {
@@ -118,10 +133,9 @@ export class DanaService {
       }
     }
     const list = [...map.values()].sort((a, b) => b.lastAt.localeCompare(a.lastAt));
-    const ttl = this.config?.conversationTtlHours ?? 24;
-    if (list[0]) {
-      list[0].open = Date.now() - new Date(list[0].lastAt).getTime() <= ttl * 3_600_000;
-    }
+    // Solo la conversación más reciente puede seguir abierta: lo está mientras
+    // no tenga el marcador de cierre por inactividad.
+    if (list[0]) list[0].open = lastStatus.get(list[0].id) !== DANA_CLOSED_STATUS;
     return list;
   }
 
@@ -149,12 +163,19 @@ export class DanaService {
     const last = await this.prisma.modDanaMessage.findFirst({
       where: { tenantId, userId },
       orderBy: { createdAt: 'desc' },
-      select: { conversationId: true, createdAt: true },
+      select: { conversationId: true, createdAt: true, status: true },
     });
     const conversationId = resolveConversationId(
-      last,
+      last
+        ? {
+            conversationId: last.conversationId,
+            createdAt: last.createdAt,
+            closed: last.status === DANA_CLOSED_STATUS,
+          }
+        : null,
       new Date(),
-      this.config.conversationTtlHours,
+      // Se puede retomar el mismo hilo hasta el cierre por inactividad (2 ventanas).
+      2 * this.config.conversationTtlMs,
       randomUUID,
       opts.newConversation === true,
     );
@@ -294,6 +315,83 @@ export class DanaService {
       { userId: target.id, traceLabel: 'dana-callback' },
     );
     return { ok: true, userId: target.id };
+  }
+
+  /**
+   * Barrido de inactividad (lo dispara el worker periódico). Por cada
+   * conversación reciente, según su último mensaje: si lleva una ventana en
+   * silencio, Dana pregunta "¿sigues ahí?"; si tras otra ventana sigue sin
+   * respuesta, se cierra por inactividad. Ambos son mensajes OUT de sistema.
+   */
+  async sweepInactive(now: Date = new Date()): Promise<{ nudged: number; closed: number }> {
+    if (!this.config) return { nudged: 0, closed: 0 };
+    const ttlMs = this.config.conversationTtlMs;
+    // Solo miramos conversaciones con actividad razonablemente reciente: una
+    // idle desde hace horas ya está cerrada por el propio cálculo de `open`.
+    const windowStart = new Date(now.getTime() - 6 * ttlMs);
+
+    const targets = await runGlobalWithoutTenant(async () => {
+      const rows = await this.prisma.modDanaMessage.findMany({
+        where: { conversationId: { not: null }, createdAt: { gt: windowStart } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          conversationId: true,
+          tenantId: true,
+          userId: true,
+          status: true,
+          createdAt: true,
+        },
+        take: 2000,
+      });
+      const seen = new Set<string>();
+      const out: Array<{
+        conversationId: string;
+        tenantId: string;
+        userId: string;
+        action: 'nudge' | 'close';
+      }> = [];
+      for (const r of rows) {
+        const id = r.conversationId!;
+        if (seen.has(id)) continue; // la primera vez que vemos el id es su ÚLTIMO mensaje
+        seen.add(id);
+        const action = decideInactivityAction(
+          { status: r.status, createdAt: r.createdAt },
+          now,
+          ttlMs,
+        );
+        if (action)
+          out.push({ conversationId: id, tenantId: r.tenantId, userId: r.userId, action });
+      }
+      return out;
+    });
+
+    let nudged = 0;
+    let closed = 0;
+    for (const t of targets) {
+      try {
+        await runAsTenant(
+          t.tenantId,
+          () =>
+            this.prisma.modDanaMessage.create({
+              data: {
+                tenantId: t.tenantId,
+                userId: t.userId,
+                conversationId: t.conversationId,
+                direction: 'OUT',
+                text: t.action === 'nudge' ? DANA_NUDGE_TEXT : DANA_CLOSED_TEXT,
+                status: t.action === 'nudge' ? DANA_NUDGE_STATUS : DANA_CLOSED_STATUS,
+              },
+            }),
+          { userId: t.userId, traceLabel: 'dana-sweep' },
+        );
+        if (t.action === 'nudge') nudged++;
+        else closed++;
+      } catch (err) {
+        this.logger.warn(`Dana sweep: no se pudo ${t.action} ${t.conversationId}: ${String(err)}`);
+      }
+    }
+    if (nudged || closed) this.logger.log(`Dana sweep: ${nudged} avisos, ${closed} cierres`);
+    return { nudged, closed };
   }
 }
 

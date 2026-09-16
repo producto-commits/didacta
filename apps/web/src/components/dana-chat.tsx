@@ -110,21 +110,31 @@ export function DanaChat({ conversationId, closed = false, onConversation }: Pro
             </p>
           </div>
         ) : (
-          messages.map((m) => (
-            <div
-              key={m.id}
-              className={
-                m.direction === 'IN'
-                  ? 'ml-8 rounded-2xl rounded-tr-sm bg-brand-600 px-3 py-2 text-sm text-white'
-                  : 'mr-8 rounded-2xl rounded-tl-sm bg-surface-2 px-3 py-2 text-sm text-text'
-              }
-            >
-              <p className="whitespace-pre-line">{m.text}</p>
-              <p className="mt-0.5 text-[10px] uppercase tracking-wide opacity-70">
-                {m.direction === 'IN' ? t('reto.danaYou') : t('reto.danaHer')}
+          messages.map((m) =>
+            // El cierre por inactividad es un aviso de sistema, no una burbuja.
+            m.status === 'CLOSED' ? (
+              <p
+                key={m.id}
+                className="mx-auto max-w-[85%] py-1 text-center text-xs text-text-muted"
+              >
+                {m.text}
               </p>
-            </div>
-          ))
+            ) : (
+              <div
+                key={m.id}
+                className={
+                  m.direction === 'IN'
+                    ? 'ml-8 rounded-2xl rounded-tr-sm bg-brand-600 px-3 py-2 text-sm text-white'
+                    : 'mr-8 rounded-2xl rounded-tl-sm bg-surface-2 px-3 py-2 text-sm text-text'
+                }
+              >
+                <p className="whitespace-pre-line">{m.text}</p>
+                <p className="mt-0.5 text-[10px] uppercase tracking-wide opacity-70">
+                  {m.direction === 'IN' ? t('reto.danaYou') : t('reto.danaHer')}
+                </p>
+              </div>
+            ),
+          )
         )}
         {waiting ? <p className="text-xs text-text-muted">{t('reto.danaWaiting')}</p> : null}
         {closed ? (

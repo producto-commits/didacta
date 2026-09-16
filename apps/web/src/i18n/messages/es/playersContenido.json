@@ -213,7 +213,7 @@
     "assistantNoConversations": "No hay conversaciones recientes",
     "assistantNoConversationsHint": "Aquí se mostrarán tus conversaciones con Dana.",
     "assistantNewConversation": "Nueva conversación",
-    "assistantConversationClosed": "Conversación cerrada. Escribe para abrir una nueva.",
+    "assistantConversationClosed": "Conversación cerrada por inactividad. Escribe un mensaje para empezar una nueva.",
     "assistantPickReto": "¿Sobre qué reto quieres enviar algo?",
     "assistantSubTabSend": "Enviar reto",
     "assistantSubTabSent": "Retos enviados",
