@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { runAsTenant, runGlobalWithoutTenant } from '../../tenancy/tenant-context.storage';
 import {
   buildOutboundPayload,
   danaConfigFromEnv,
@@ -235,53 +236,63 @@ export class DanaService {
    * la respuesta va a esa conversación; si no, se casa con el alumno por correo
    * y se cuelga de su conversación más reciente. Si el mismo correo existe en
    * varios tenants, gana el que tenga el mensaje IN más reciente.
+   *
+   * Patrón webhook (RLS F3): es un endpoint PÚBLICO sin contexto de tenant y el
+   * lookup es legítimamente cross-tenant (correo → usuario → tenant). Bajo el
+   * rol de runtime `didacta_app` (NOBYPASSRLS) una consulta sin tenant devuelve
+   * 0 filas, así que el lookup corre en `runGlobalWithoutTenant` (bypass
+   * sancionado) y la escritura del OUT en `runAsTenant(tenant destino)` para que
+   * pase el WITH CHECK de RLS.
    */
   async receive(msg: InboundMessage): Promise<{ ok: boolean; userId?: string }> {
-    if (msg.conversacionId) {
-      const byConv = await this.prisma.modDanaMessage.findFirst({
-        where: { conversationId: msg.conversacionId },
+    const target = await runGlobalWithoutTenant(async () => {
+      if (msg.conversacionId) {
+        const byConv = await this.prisma.modDanaMessage.findFirst({
+          where: { conversationId: msg.conversacionId },
+          select: { userId: true, tenantId: true, conversationId: true },
+        });
+        if (byConv)
+          return {
+            id: byConv.userId,
+            tenantId: byConv.tenantId,
+            conversationId: byConv.conversationId,
+          };
+      }
+      const users = await this.prisma.user.findMany({
+        where: { email: { equals: msg.correo, mode: 'insensitive' } },
+        select: { id: true, tenantId: true },
+      });
+      if (users.length === 0) return null;
+      const latest = await this.prisma.modDanaMessage.findFirst({
+        where: { userId: { in: users.map((u) => u.id) }, direction: 'IN' },
+        orderBy: { createdAt: 'desc' },
         select: { userId: true, tenantId: true, conversationId: true },
       });
-      if (byConv) {
-        await this.prisma.modDanaMessage.create({
+      return latest
+        ? { id: latest.userId, tenantId: latest.tenantId, conversationId: latest.conversationId }
+        : { id: users[0]!.id, tenantId: users[0]!.tenantId, conversationId: null };
+    });
+
+    if (!target) {
+      this.logger.warn(`Dana: callback para correo desconocido ${msg.correo}`);
+      return { ok: false };
+    }
+
+    await runAsTenant(
+      target.tenantId,
+      () =>
+        this.prisma.modDanaMessage.create({
           data: {
-            tenantId: byConv.tenantId,
-            userId: byConv.userId,
-            conversationId: byConv.conversationId,
+            tenantId: target.tenantId,
+            userId: target.id,
+            conversationId: target.conversationId,
             direction: 'OUT',
             text: msg.mensaje,
             status: 'RECEIVED',
           },
-        });
-        return { ok: true, userId: byConv.userId };
-      }
-    }
-    const users = await this.prisma.user.findMany({
-      where: { email: { equals: msg.correo, mode: 'insensitive' } },
-      select: { id: true, tenantId: true },
-    });
-    if (users.length === 0) {
-      this.logger.warn(`Dana: callback para correo desconocido ${msg.correo}`);
-      return { ok: false };
-    }
-    const latest = await this.prisma.modDanaMessage.findFirst({
-      where: { userId: { in: users.map((u) => u.id) }, direction: 'IN' },
-      orderBy: { createdAt: 'desc' },
-      select: { userId: true, tenantId: true, conversationId: true },
-    });
-    const target = latest
-      ? { id: latest.userId, tenantId: latest.tenantId, conversationId: latest.conversationId }
-      : { id: users[0]!.id, tenantId: users[0]!.tenantId, conversationId: null };
-    await this.prisma.modDanaMessage.create({
-      data: {
-        tenantId: target.tenantId,
-        userId: target.id,
-        conversationId: target.conversationId,
-        direction: 'OUT',
-        text: msg.mensaje,
-        status: 'RECEIVED',
-      },
-    });
+        }),
+      { userId: target.id, traceLabel: 'dana-callback' },
+    );
     return { ok: true, userId: target.id };
   }
 }
