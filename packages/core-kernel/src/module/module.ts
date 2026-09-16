@@ -78,6 +78,27 @@ export interface StorageAdapter {
    * con el MIME correcto (streaming de vídeo con Range nativo).
    */
   getUploadUrl?(key: string, contentType: string, expiresInSeconds?: number): Promise<string>;
+
+  /**
+   * Subida MULTIPART (por partes) para ficheros grandes: el navegador sube el
+   * vídeo en trozos de unos MB, cada uno con su PUT firmado. Evita el corte de
+   * un único PUT gigante detrás de un proxy (límite de tamaño o timeout) y deja
+   * reintentar solo la parte fallida. Solo lo implementa el driver S3.
+   *
+   * Flujo: `createMultipartUpload` → N× (`getUploadPartUrl` + PUT del trozo) →
+   * `completeMultipartUpload` (el backend arma la lista de partes leyéndolas del
+   * propio storage, así el navegador no necesita leer cabeceras ETag). En caso
+   * de fallo, `abortMultipartUpload` limpia los trozos subidos.
+   */
+  createMultipartUpload?(key: string, contentType: string): Promise<{ uploadId: string }>;
+  getUploadPartUrl?(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    expiresInSeconds?: number,
+  ): Promise<string>;
+  completeMultipartUpload?(key: string, uploadId: string): Promise<void>;
+  abortMultipartUpload?(key: string, uploadId: string): Promise<void>;
 }
 
 export interface UploadImageOptions {

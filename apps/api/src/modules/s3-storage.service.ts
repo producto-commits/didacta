@@ -4,12 +4,18 @@
  */
 
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
+  type CompletedPart,
   type S3ClientConfig,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -117,6 +123,85 @@ export class S3StorageService implements StorageAdapter {
     return getSignedUrl(this.client, cmd, {
       expiresIn: expiresInSeconds ?? this.defaultTtl,
     });
+  }
+
+  /** Inicia una subida multipart y devuelve el uploadId con el que van las partes. */
+  async createMultipartUpload(key: string, contentType: string): Promise<{ uploadId: string }> {
+    const safe = this.sanitize(key);
+    const out = await this.client.send(
+      new CreateMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: safe,
+        ContentType: contentType,
+      }),
+    );
+    if (!out.UploadId) throw new Error('S3 no devolvió UploadId');
+    return { uploadId: out.UploadId };
+  }
+
+  /**
+   * Presigned PUT de UNA parte (5 MiB–5 GiB; la última puede ser menor). El
+   * navegador sube el trozo a esta URL. NO se firma Content-Type: las partes no
+   * lo llevan (el MIME va en el createMultipartUpload).
+   */
+  async getUploadPartUrl(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    expiresInSeconds?: number,
+  ): Promise<string> {
+    const safe = this.sanitize(key);
+    const cmd = new UploadPartCommand({
+      Bucket: this.bucket,
+      Key: safe,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+    });
+    return getSignedUrl(this.client, cmd, { expiresIn: expiresInSeconds ?? this.defaultTtl });
+  }
+
+  /**
+   * Cierra la subida multipart. El backend lee las partes ya subidas del propio
+   * storage (ListParts, paginado) y arma el CompleteMultipartUpload, así el
+   * navegador no necesita leer ni reenviar los ETag (evita depender del CORS
+   * ExposeHeaders de MinIO).
+   */
+  async completeMultipartUpload(key: string, uploadId: string): Promise<void> {
+    const safe = this.sanitize(key);
+    const parts: CompletedPart[] = [];
+    let marker: string | undefined;
+    do {
+      const page = await this.client.send(
+        new ListPartsCommand({
+          Bucket: this.bucket,
+          Key: safe,
+          UploadId: uploadId,
+          PartNumberMarker: marker,
+        }),
+      );
+      for (const p of page.Parts ?? []) {
+        if (p.PartNumber != null && p.ETag) parts.push({ PartNumber: p.PartNumber, ETag: p.ETag });
+      }
+      marker = page.IsTruncated ? page.NextPartNumberMarker : undefined;
+    } while (marker);
+    if (parts.length === 0) throw new Error('La subida multipart no tiene partes');
+    parts.sort((a, b) => (a.PartNumber ?? 0) - (b.PartNumber ?? 0));
+    await this.client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: safe,
+        UploadId: uploadId,
+        MultipartUpload: { Parts: parts },
+      }),
+    );
+  }
+
+  /** Cancela una subida multipart y descarta los trozos ya subidos. */
+  async abortMultipartUpload(key: string, uploadId: string): Promise<void> {
+    const safe = this.sanitize(key);
+    await this.client.send(
+      new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: safe, UploadId: uploadId }),
+    );
   }
 
   /** Health check: HeadBucket es 200 si el bucket existe y las creds son válidas. */

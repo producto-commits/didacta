@@ -46,6 +46,26 @@ const presignSchema = z.object({
 
 type PresignDto = z.infer<typeof presignSchema>;
 
+/** Tamaño de cada parte en la subida multipart (8 MiB). Mín. S3 = 5 MiB. */
+const MULTIPART_PART_SIZE = 8 * 1024 * 1024;
+/** Máx. de partes que admite S3/MinIO por objeto. */
+const MULTIPART_MAX_PARTS = 10_000;
+
+const multipartCreateSchema = presignSchema;
+const multipartPartSchema = z.object({
+  key: z.string().trim().min(1).max(512),
+  uploadId: z.string().trim().min(1).max(512),
+  partNumber: z.number().int().min(1).max(MULTIPART_MAX_PARTS),
+});
+const multipartFinishSchema = z.object({
+  key: z.string().trim().min(1).max(512),
+  uploadId: z.string().trim().min(1).max(512),
+});
+
+type MultipartCreateDto = z.infer<typeof multipartCreateSchema>;
+type MultipartPartDto = z.infer<typeof multipartPartSchema>;
+type MultipartFinishDto = z.infer<typeof multipartFinishSchema>;
+
 /**
  * Subida NATIVA de vídeos de clase desde el computador del formador.
  *
@@ -95,6 +115,114 @@ export class VideoUploadController {
     const uploadUrl = await storage.getUploadUrl(key, dto.contentType, 3600);
 
     return { uploadUrl, key, playbackUrl: `/api/v1/storage/video/${key}` };
+  }
+
+  @Post('multipart/create')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Inicia una subida multipart (por partes) de un vídeo grande.' })
+  async multipartCreate(
+    @CurrentUser() user: SessionClaims | undefined,
+    @Body(new ZodValidationPipe(multipartCreateSchema)) dto: MultipartCreateDto,
+  ): Promise<{
+    key: string;
+    uploadId: string;
+    playbackUrl: string;
+    partSize: number;
+  }> {
+    const author = this.requireAuthor(user);
+    const storage = this.factory.getStorage();
+    if (typeof storage.createMultipartUpload !== 'function') {
+      throw new BadRequestException({
+        message: 'La subida de vídeos requiere almacenamiento de objetos (S3/MinIO).',
+        code: 'VIDEO_UPLOAD_REQUIRES_S3',
+      });
+    }
+    const ext = VIDEO_MIME_TO_EXT[dto.contentType]!;
+    const key = `videos/${author.tenantId}/${randomUUID()}.${ext}`;
+    const { uploadId } = await storage.createMultipartUpload(key, dto.contentType);
+    return {
+      key,
+      uploadId,
+      playbackUrl: `/api/v1/storage/video/${key}`,
+      partSize: MULTIPART_PART_SIZE,
+    };
+  }
+
+  @Post('multipart/part-url')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Firma el PUT de una parte de la subida multipart.' })
+  async multipartPartUrl(
+    @CurrentUser() user: SessionClaims | undefined,
+    @Body(new ZodValidationPipe(multipartPartSchema)) dto: MultipartPartDto,
+  ): Promise<{ url: string }> {
+    const author = this.requireAuthor(user);
+    this.assertOwnKey(author, dto.key);
+    const storage = this.factory.getStorage();
+    if (typeof storage.getUploadPartUrl !== 'function') {
+      throw new BadRequestException({ code: 'VIDEO_UPLOAD_REQUIRES_S3', message: 'S3 requerido.' });
+    }
+    const url = await storage.getUploadPartUrl(dto.key, dto.uploadId, dto.partNumber, 3600);
+    return { url };
+  }
+
+  @Post('multipart/complete')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Cierra la subida multipart y deja el vídeo listo.' })
+  async multipartComplete(
+    @CurrentUser() user: SessionClaims | undefined,
+    @Body(new ZodValidationPipe(multipartFinishSchema)) dto: MultipartFinishDto,
+  ): Promise<{ playbackUrl: string }> {
+    const author = this.requireAuthor(user);
+    this.assertOwnKey(author, dto.key);
+    const storage = this.factory.getStorage();
+    if (typeof storage.completeMultipartUpload !== 'function') {
+      throw new BadRequestException({ code: 'VIDEO_UPLOAD_REQUIRES_S3', message: 'S3 requerido.' });
+    }
+    await storage.completeMultipartUpload(dto.key, dto.uploadId);
+    return { playbackUrl: `/api/v1/storage/video/${dto.key}` };
+  }
+
+  @Post('multipart/abort')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Cancela una subida multipart y descarta los trozos subidos.' })
+  async multipartAbort(
+    @CurrentUser() user: SessionClaims | undefined,
+    @Body(new ZodValidationPipe(multipartFinishSchema)) dto: MultipartFinishDto,
+  ): Promise<{ ok: true }> {
+    const author = this.requireAuthor(user);
+    this.assertOwnKey(author, dto.key);
+    const storage = this.factory.getStorage();
+    if (typeof storage.abortMultipartUpload === 'function') {
+      await storage.abortMultipartUpload(dto.key, dto.uploadId);
+    }
+    return { ok: true };
+  }
+
+  /** Rol autorizado para subir vídeos, o excepción. */
+  private requireAuthor(user: SessionClaims | undefined): SessionClaims {
+    if (!user) throw new UnauthorizedException();
+    if (!user.roles.some((r) => VIDEO_UPLOAD_ROLES.has(r))) {
+      throw new ForbiddenException('No tienes permiso para subir vídeos.');
+    }
+    return user;
+  }
+
+  /**
+   * La key de una subida en curso llega del cliente: hay que exigir que
+   * pertenezca al prefijo del propio tenant, para que nadie toque (ni complete
+   * ni aborte) la subida de otro.
+   */
+  private assertOwnKey(user: SessionClaims, key: string): void {
+    if (!key.startsWith(`videos/${user.tenantId}/`) || key.includes('..')) {
+      throw new ForbiddenException({
+        message: 'La subida no pertenece a tu organización.',
+        code: 'VIDEO_UPLOAD_KEY_FORBIDDEN',
+      });
+    }
   }
 
   @Get('*')

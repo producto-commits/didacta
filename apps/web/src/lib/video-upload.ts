@@ -24,6 +24,8 @@ export class VideoUploadError extends Error {
   constructor(
     public readonly reason: 'unsupported-type' | 'too-large' | 'upload-failed' | 'network',
     message: string,
+    /** Código HTTP del storage cuando `reason === 'upload-failed'`. */
+    public readonly status?: number,
   ) {
     super(message);
     this.name = 'VideoUploadError';
@@ -49,32 +51,78 @@ interface PresignResponse {
   playbackUrl: string;
 }
 
-/** PUT directo al storage (S3/MinIO) con barra de progreso vía XHR. */
-function putWithProgress(
+/**
+ * A partir de este tamaño el vídeo se sube por PARTES (multipart) en vez de un
+ * único PUT. Un PUT gigante detrás de un proxy (Traefik) se corta por límite de
+ * tamaño o timeout; troceado, cada parte es una petición corta y reintentar
+ * afecta solo a la parte fallida. 8 MiB = el tamaño de parte que fija el backend.
+ */
+const MULTIPART_THRESHOLD = 8 * 1024 * 1024;
+
+/** Reintentos por parte/PUT ante un fallo transitorio de red o proxy. */
+const MAX_PART_RETRIES = 3;
+
+/**
+ * PUT de un blob (fichero completo o una parte) al storage con progreso.
+ * `contentType` solo se manda cuando la URL lo firmó (subida simple); en las
+ * partes multipart va vacío porque la URL de la parte NO firma Content-Type.
+ * `onLoaded` reporta bytes subidos de ESTE PUT (para agregar el progreso total).
+ */
+function putBlob(
   url: string,
-  file: File,
-  contentType: string,
-  onProgress?: (pct: number) => void,
+  body: Blob,
+  contentType: string | null,
+  onLoaded?: (loaded: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url, true);
-    // El content-type va firmado en la URL: hay que mandarlo idéntico o falla la firma.
-    xhr.setRequestHeader('Content-Type', contentType);
+    if (contentType) xhr.setRequestHeader('Content-Type', contentType);
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable && onLoaded) onLoaded(e.loaded);
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
       else
         reject(
-          new VideoUploadError('upload-failed', `El storage rechazó la subida (${xhr.status}).`),
+          new VideoUploadError(
+            'upload-failed',
+            `El storage rechazó la subida (${xhr.status}).`,
+            xhr.status,
+          ),
         );
     };
     xhr.onerror = () =>
       reject(new VideoUploadError('network', 'Error de red subiendo el vídeo al storage.'));
-    xhr.send(file);
+    xhr.send(body);
   });
+}
+
+/** PUT con reintentos ante fallos transitorios (red o 5xx del proxy), no ante 4xx. */
+async function putBlobRetrying(
+  url: string,
+  body: Blob,
+  contentType: string | null,
+  onLoaded?: (loaded: number) => void,
+): Promise<void> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_PART_RETRIES; attempt++) {
+    try {
+      await putBlob(url, body, contentType, onLoaded);
+      return;
+    } catch (e) {
+      lastErr = e;
+      // Un 4xx (firma inválida, permiso, etc.) no se arregla reintentando.
+      const transient =
+        e instanceof VideoUploadError &&
+        (e.reason === 'network' || (e.status !== undefined && e.status >= 500));
+      if (!transient) throw e;
+      await new Promise((r) => setTimeout(r, 500 * attempt));
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new VideoUploadError('network', 'No se pudo subir el vídeo tras varios intentos.');
 }
 
 /**
@@ -94,8 +142,46 @@ export async function uploadLessonVideo(
     throw new VideoUploadError('too-large', 'El vídeo supera el tamaño máximo (5 GB).');
   }
 
-  const presign = await apiFetch<PresignResponse>(
-    '/api/v1/storage/video/presign',
+  // Ficheros pequeños: un único PUT firmado (camino simple y probado).
+  if (file.size <= MULTIPART_THRESHOLD) {
+    const presign = await apiFetch<PresignResponse>(
+      '/api/v1/storage/video/presign',
+      {
+        method: 'POST',
+        body: JSON.stringify({ filename: file.name, contentType, sizeBytes: file.size }),
+      },
+      withAuth(),
+    );
+    await putBlobRetrying(presign.uploadUrl, file, contentType, (loaded) =>
+      onProgress?.(Math.round((loaded / file.size) * 100)),
+    );
+    return presign.playbackUrl;
+  }
+
+  // Ficheros grandes: subida por partes (multipart).
+  return uploadLessonVideoMultipart(file, contentType, onProgress);
+}
+
+interface MultipartCreateResponse {
+  key: string;
+  uploadId: string;
+  playbackUrl: string;
+  partSize: number;
+}
+
+/**
+ * Sube el vídeo en partes: crea la subida, sube cada trozo a su URL firmada (con
+ * reintento), y la cierra. El backend arma la lista de partes leyéndolas del
+ * storage, así el navegador no necesita leer cabeceras ETag. Si algo falla, se
+ * aborta la subida (mejor esfuerzo) para no dejar trozos huérfanos en el bucket.
+ */
+async function uploadLessonVideoMultipart(
+  file: File,
+  contentType: string,
+  onProgress?: (pct: number) => void,
+): Promise<string> {
+  const created = await apiFetch<MultipartCreateResponse>(
+    '/api/v1/storage/video/multipart/create',
     {
       method: 'POST',
       body: JSON.stringify({ filename: file.name, contentType, sizeBytes: file.size }),
@@ -103,8 +189,61 @@ export async function uploadLessonVideo(
     withAuth(),
   );
 
-  await putWithProgress(presign.uploadUrl, file, contentType, onProgress);
-  return presign.playbackUrl;
+  const partSize = created.partSize > 0 ? created.partSize : MULTIPART_THRESHOLD;
+  const partCount = Math.max(1, Math.ceil(file.size / partSize));
+  // Progreso agregado: bytes ya confirmados + lo que lleva la parte en curso.
+  let uploadedConfirmed = 0;
+  const report = (currentPartLoaded: number) => {
+    const pct = Math.min(
+      99,
+      Math.round(((uploadedConfirmed + currentPartLoaded) / file.size) * 100),
+    );
+    onProgress?.(pct);
+  };
+
+  try {
+    for (let partNumber = 1; partNumber <= partCount; partNumber++) {
+      const start = (partNumber - 1) * partSize;
+      const chunk = file.slice(start, Math.min(start + partSize, file.size));
+      const { url } = await apiFetch<{ url: string }>(
+        '/api/v1/storage/video/multipart/part-url',
+        {
+          method: 'POST',
+          body: JSON.stringify({ key: created.key, uploadId: created.uploadId, partNumber }),
+        },
+        withAuth(),
+      );
+      // La URL de la parte NO firma Content-Type → no se manda.
+      await putBlobRetrying(url, chunk, null, (loaded) => report(loaded));
+      uploadedConfirmed += chunk.size;
+    }
+
+    await apiFetch(
+      '/api/v1/storage/video/multipart/complete',
+      {
+        method: 'POST',
+        body: JSON.stringify({ key: created.key, uploadId: created.uploadId }),
+      },
+      withAuth(),
+    );
+    onProgress?.(100);
+    return created.playbackUrl;
+  } catch (err) {
+    // Limpieza best-effort: descartar los trozos ya subidos.
+    try {
+      await apiFetch(
+        '/api/v1/storage/video/multipart/abort',
+        {
+          method: 'POST',
+          body: JSON.stringify({ key: created.key, uploadId: created.uploadId }),
+        },
+        withAuth(),
+      );
+    } catch {
+      /* si el abort falla, S3 caduca la subida incompleta por su cuenta */
+    }
+    throw err;
+  }
 }
 
 /**
