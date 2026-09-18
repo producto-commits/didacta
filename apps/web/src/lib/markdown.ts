@@ -106,12 +106,17 @@ function renderBlocks(src: string): string {
   return out.join('');
 }
 
-/** Estilos en línea sobre texto YA escapado: código, enlaces, negrita, cursiva. */
+/**
+ * Estilos en línea sobre texto YA escapado: código, enlaces, negrita, cursiva.
+ * El código en línea se aparta con un marcador ASCII visible (@@CODE0@@) para
+ * que sus asteriscos/guiones no se interpreten y se restaura al final. ASCII a
+ * propósito: un marcador invisible se puede perder al formatear y romper todo.
+ */
 function renderInline(text: string): string {
   const code: string[] = [];
   let s = text.replace(/`([^`]+)`/g, (_m, c: string) => {
     code.push(c);
-    return `${code.length - 1}`;
+    return `@@CODE${code.length - 1}@@`;
   });
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label: string, url: string) => {
     const safe = safeExternalUrl(url.replace(/&amp;/g, '&'));
@@ -123,6 +128,6 @@ function renderInline(text: string): string {
   s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
   s = s.replace(/(^|[^\w])_([^_\n]+)_(?=[^\w]|$)/g, '$1<em>$2</em>');
-  s = s.replace(/(\d+)/g, (_m, i: string) => `<code>${code[Number(i)]}</code>`);
+  s = s.replace(/@@CODE(\d+)@@/g, (_m, i: string) => `<code>${code[Number(i)]}</code>`);
   return s;
 }

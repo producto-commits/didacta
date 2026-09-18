@@ -29,6 +29,12 @@ describe('markdownToSafeHtml', () => {
     expect(md('usa `npm test`')).toBe('<p>usa <code>npm test</code></p>');
     expect(md('```\ncode();\n```')).toBe('<pre><code>code();</code></pre>');
   });
+  it('los números del texto no se convierten en código', () => {
+    // Regresión: un marcador de código mal restaurado convertía cualquier dígito.
+    expect(md('Atendemos 10 países con `Dana`')).toBe(
+      '<p>Atendemos 10 países con <code>Dana</code></p>',
+    );
+  });
   it('enlace http válido; esquema peligroso queda como texto', () => {
     const link = md('[Dropi](https://dropi.co)');
     expect(link).toContain('href="https://dropi.co');
