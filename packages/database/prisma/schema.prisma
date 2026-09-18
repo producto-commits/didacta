@@ -238,6 +238,11 @@ model User {
   /// ID del user en el sistema origen (ej. WordPress user_id). Free-form.
   /// Solo significativo en combinación con `externalSource`. Ver ADR-014.
   externalId            String?    @map("external_id") @db.VarChar(200)
+  /// ID del contacto en GoHighLevel (CRM). Lo envía el alta externa (n8n/GHL)
+  /// en `POST /inscribe` para enlazar el contacto con su usuario de Didacta.
+  ghlContactId          String?    @map("ghl_contact_id") @db.VarChar(64)
+  /// ID de la Location (subcuenta) de GoHighLevel del contacto.
+  ghlLocationId         String?    @map("ghl_location_id") @db.VarChar(64)
   createdAt             DateTime   @default(now()) @map("created_at")
   updatedAt             DateTime   @updatedAt @map("updated_at")
   deletedAt             DateTime?  @map("deleted_at")
@@ -274,6 +279,7 @@ model User {
   @@index([tenantId, status])
   @@index([tenantId, externalSource, externalId], map: "user_external_ref_idx")
   @@index([tenantId, telegramId], map: "user_tenant_telegram_idx")
+  @@index([tenantId, ghlContactId], map: "user_ghl_contact_idx")
   @@map("user")
 }
 

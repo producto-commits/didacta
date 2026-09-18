@@ -27,6 +27,10 @@ export const inscribeSchema = z
     locale: z.string().min(2).max(10).optional(),
     /** Referencia del pedido/transacción en el sistema externo (para trazabilidad). */
     externalRef: z.string().trim().min(1).max(200).optional(),
+    /** ID del contacto en GoHighLevel (CRM). Se guarda en el usuario. */
+    ghlContactId: z.string().trim().min(1).max(64).optional(),
+    /** ID de la Location (subcuenta) de GoHighLevel del contacto. */
+    ghlLocationId: z.string().trim().min(1).max(64).optional(),
   })
   .refine((d) => (d.courseIds?.length ?? 0) > 0 || (d.accessGroupIds?.length ?? 0) > 0, {
     message: 'Indica al menos un curso (courseIds) o un grupo de acceso (accessGroupIds).',

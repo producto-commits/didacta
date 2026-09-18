@@ -98,6 +98,18 @@ export class InscribeService {
   ): Promise<InscribeResult> {
     const { userId, created } = await this.findOrCreateUser(tenantId, actorId, dto, ctx);
 
+    // IDs de GoHighLevel: se guardan en el contacto tanto si es nuevo como si ya
+    // existía. Solo se escribe el campo que venga en el payload (no borra el otro).
+    if (dto.ghlContactId || dto.ghlLocationId) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(dto.ghlContactId ? { ghlContactId: dto.ghlContactId } : {}),
+          ...(dto.ghlLocationId ? { ghlLocationId: dto.ghlLocationId } : {}),
+        },
+      });
+    }
+
     const learning = this.registry.getLearningService();
     const enrollments: InscribeEnrollmentResult[] = [];
     for (const courseId of dto.courseIds ?? []) {

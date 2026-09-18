@@ -65,6 +65,16 @@ export class InscribeController {
         },
         locale: { type: 'string', example: 'es-ES' },
         externalRef: { type: 'string', example: 'order_12345' },
+        ghlContactId: {
+          type: 'string',
+          description: 'ID del contacto en GoHighLevel; se guarda en el usuario.',
+          example: 'aBcD1234EfGh5678',
+        },
+        ghlLocationId: {
+          type: 'string',
+          description: 'ID de la Location (subcuenta) de GoHighLevel del contacto.',
+          example: 'loc_9XyZ0000',
+        },
       },
     },
   })
