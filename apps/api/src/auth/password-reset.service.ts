@@ -57,6 +57,13 @@ const NO_CLIENT_CONTEXT: ClientContext = { ip: null, userAgent: null };
  *   leakear si el email existe (user enumeration attack).
  * - Se invalidan tokens previos del mismo user al pedir uno nuevo.
  */
+/** Resultado de definir la contraseña: a quién y si fue su primera vez. */
+export interface PasswordResetResult {
+  userId: string;
+  tenantId: string;
+  firstTime: boolean;
+}
+
 @Injectable()
 export class PasswordResetService {
   constructor(
@@ -197,7 +204,7 @@ export class PasswordResetService {
     rawToken: string,
     newPassword: string,
     ctx: ClientContext = NO_CLIENT_CONTEXT,
-  ): Promise<void> {
+  ): Promise<PasswordResetResult> {
     const tokenHash = this.hashToken(rawToken);
     // RLS F2: lookup por hash del token ANTES de conocer el tenant —
     // sancionado (inventario del flip F3). El consumo corre bajo el tenant
@@ -237,7 +244,7 @@ export class PasswordResetService {
     record: { id: string; userId: string; tenantId: string },
     newPassword: string,
     ctx: ClientContext,
-  ): Promise<void> {
+  ): Promise<PasswordResetResult> {
     const passwordHash = await this.passwords.hash(newPassword);
 
     const owner = await this.prisma.user.findUnique({
@@ -249,14 +256,21 @@ export class PasswordResetService {
         name: true,
         ghlContactId: true,
         ghlLocationId: true,
+        passwordSetAt: true,
       },
     });
     const activarInvitado = owner?.status === 'PENDING' && owner.passwordHash === null;
+    // Primera vez = el usuario nunca había definido su contraseña.
+    const firstTime = owner != null && owner.passwordSetAt === null;
 
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: record.userId },
-        data: { passwordHash, ...(activarInvitado ? { status: 'ACTIVE' as const } : {}) },
+        data: {
+          passwordHash,
+          ...(activarInvitado ? { status: 'ACTIVE' as const } : {}),
+          ...(firstTime ? { passwordSetAt: new Date() } : {}),
+        },
       }),
       this.prisma.passwordResetToken.update({
         where: { id: record.id },
@@ -270,16 +284,14 @@ export class PasswordResetService {
       action: 'auth.password_reset.completed',
       resourceType: 'user',
       resourceId: record.userId,
-      metadata: { tokenId: record.id },
+      metadata: { tokenId: record.id, firstTime },
       ip: ctx.ip ?? undefined,
       userAgent: ctx.userAgent ?? undefined,
     });
 
-    // Feedback a n8n/GoHighLevel: avisa que el usuario definió/cambió su
-    // contraseña con el link mágico, con sus datos (los IDs de GHL van null si el
-    // contacto no está enlazado; n8n tiene el email para buscarlo). Best-effort:
-    // no afecta al reset ya hecho, y solo sale si la env del webhook está puesta.
-    if (owner) {
+    // Feedback a n8n/GoHighLevel SOLO la primera vez que define su contraseña
+    // (no en resets posteriores). Best-effort; solo sale si la env está puesta.
+    if (firstTime && owner) {
       void this.notifyPasswordFeedback({
         event: 'password_set',
         userId: record.userId,
@@ -288,8 +300,11 @@ export class PasswordResetService {
         ghlContactId: owner.ghlContactId ?? null,
         ghlLocationId: owner.ghlLocationId ?? null,
         passwordChanged: true,
+        firstTime: true,
       });
     }
+
+    return { userId: record.userId, tenantId: record.tenantId, firstTime };
   }
 
   /**

@@ -12,7 +12,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiHttpError, apiFetch } from '@/lib/api-client';
+import { authStorage, type StoredSession } from '@/lib/auth-storage';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
+import { requestThemeRefresh } from '@/lib/theming';
+import { invalidateCommunitySpacesCache } from '@/modules/community';
+
+/** Respuesta de reset-password: con auto-login trae tokens + user; si no, solo message. */
+interface ResetPasswordResponse {
+  ok: boolean;
+  message?: string;
+  tokens?: { accessToken: string; refreshToken: string };
+  mfaRequired?: boolean;
+  user?: StoredSession['user'];
+}
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -52,12 +64,22 @@ export function ResetPasswordForm() {
     }
 
     try {
-      await apiFetch<{ ok: boolean; message: string }>('/api/v1/auth/reset-password', {
+      const res = await apiFetch<ResetPasswordResponse>('/api/v1/auth/reset-password', {
         method: 'POST',
         body: JSON.stringify({ token, newPassword }),
       });
+      // Auto-login: si el backend devolvió sesión, entramos directo sin pedir
+      // login otra vez. Si no (p. ej. MFA), caemos al login normal.
+      if (res.tokens && res.user) {
+        authStorage.saveTokens(res.tokens.accessToken, res.tokens.refreshToken, true);
+        authStorage.saveSession({ user: res.user, mfaRequired: res.mfaRequired ?? false }, true);
+        invalidateCommunitySpacesCache();
+        requestThemeRefresh();
+        router.push(res.user.onboardingCompletedAt === null ? '/onboarding' : '/');
+        return;
+      }
       setDone(true);
-      // Redirige a signin tras un momento corto para que el usuario lea el feedback.
+      // Sin auto-login (MFA u otro): redirige a signin para que inicie sesión.
       setTimeout(() => router.push('/signin'), 2000);
     } catch (e) {
       setError(e instanceof ApiHttpError ? apiErrorMessage(e, tErrors) : t('reset.submitError'));

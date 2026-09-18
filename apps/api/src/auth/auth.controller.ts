@@ -157,7 +157,15 @@ export class AuthController {
     @Req() req: FastifyRequest,
     @Body(new ZodValidationPipe(resetPasswordSchema)) dto: ResetPasswordDto,
   ) {
-    await this.passwordReset.reset(dto.token, dto.newPassword, extractClientContext(req));
+    const ctx = extractClientContext(req);
+    const result = await this.passwordReset.reset(dto.token, dto.newPassword, ctx);
+    // Auto-login: tras definir la contraseña dejamos la sesión abierta para que
+    // el usuario NO tenga que iniciar sesión otra vez. Si necesita MFA, `session`
+    // es null y el cliente cae al login normal.
+    const session = await this.auth.issueSessionForUser(result.userId, result.tenantId, ctx);
+    if (session) {
+      return { ok: true, ...session };
+    }
     return { ok: true, message: 'Tu contraseña fue actualizada. Ya puedes iniciar sesión.' };
   }
 

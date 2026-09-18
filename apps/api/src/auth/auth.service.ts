@@ -488,6 +488,76 @@ export class AuthService {
   }
 
   /**
+   * Emite una sesión para un usuario ya autenticado por otra vía (el token de
+   * reset del link mágico), para dejarlo logueado sin pedir login de nuevo.
+   * Devuelve null si el usuario no está activo o si necesita MFA (en ese caso
+   * debe pasar por el login normal, no lo auto-logueamos). Corre bajo su tenant.
+   */
+  async issueSessionForUser(
+    userId: string,
+    tenantId: string,
+    ctx: ClientContext = NO_CLIENT_CONTEXT,
+  ): Promise<AuthResult | null> {
+    return runAsTenant(
+      tenantId,
+      async () => {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          include: { roles: { include: { role: true } }, tenant: true },
+        });
+        if (!user || user.status !== 'ACTIVE') return null;
+        const roles = user.roles.map((r: { role: { name: string } }) => r.role.name);
+        const mfaRequired = this.shouldRequireMfa(roles, user.mfaEnabled);
+        const policyOutcome = await this.mfaPolicy.evaluateLoginPolicy(tenantId, {
+          mfaEnabled: user.mfaEnabled,
+          roles,
+        });
+        // Con MFA no auto-logueamos: el usuario pasa por el login normal.
+        if (mfaRequired || policyOutcome.outcome === 'block') return null;
+
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date() },
+        });
+
+        const tokens = await this.sessions.issue(
+          { sub: user.id, tenantId, roles, mfaVerified: true },
+          ctx,
+        );
+
+        await this.auditLog.record({
+          tenantId,
+          actorId: user.id,
+          action: 'user.signin.success',
+          resourceType: 'user',
+          resourceId: user.id,
+          metadata: { autoLogin: 'password_set', roles },
+          ip: ctx.ip ?? undefined,
+          userAgent: ctx.userAgent ?? undefined,
+        });
+
+        return {
+          tokens,
+          mfaRequired: false,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            avatarUrl: user.avatarUrl ?? null,
+            tenantId,
+            tenantSlug: user.tenant.slug,
+            roles,
+            mfaEnabled: user.mfaEnabled,
+            mustChangePassword: user.mustChangePassword,
+            onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
+          },
+        };
+      },
+      { traceLabel: 'auth-password-set-login', userId },
+    );
+  }
+
+  /**
    * Política global de MFA por rol. **Default = NO obligatorio.**
    *
    * El operador puede activar enforcement automática para roles admin

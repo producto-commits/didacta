@@ -247,6 +247,10 @@ model User {
   updatedAt             DateTime   @updatedAt @map("updated_at")
   deletedAt             DateTime?  @map("deleted_at")
   lastLoginAt           DateTime?  @map("last_login_at")
+  /// Cuándo el usuario definió su contraseña por PRIMERA vez (link mágico del
+  /// alta). Null = aún no la ha definido. Sirve para avisar a n8n/GHL solo la
+  /// primera vez (no en cada reset). Backfill de usuarios previos = last_login_at.
+  passwordSetAt         DateTime?  @map("password_set_at")
   /// Timestamp en que el usuario completó el onboarding de primera vez.
   /// Null = aún no lo completó → el shell lo fuerza a /onboarding antes de
   /// dejarlo entrar. Backfill de usuarios previos = created_at (no se les
