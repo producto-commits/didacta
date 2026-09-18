@@ -275,16 +275,17 @@ export class PasswordResetService {
       userAgent: ctx.userAgent ?? undefined,
     });
 
-    // Feedback a GoHighLevel (n8n): solo para contactos enlazados con GHL, avisa
-    // que el contacto ya definió/cambió su contraseña con el link mágico. Con la
-    // misma información del contacto. Best-effort: no afecta al reset ya hecho.
-    if (owner?.ghlContactId) {
+    // Feedback a n8n/GoHighLevel: avisa que el usuario definió/cambió su
+    // contraseña con el link mágico, con sus datos (los IDs de GHL van null si el
+    // contacto no está enlazado; n8n tiene el email para buscarlo). Best-effort:
+    // no afecta al reset ya hecho, y solo sale si la env del webhook está puesta.
+    if (owner) {
       void this.notifyPasswordFeedback({
         event: 'password_set',
         userId: record.userId,
         email: owner.email,
         name: owner.name ?? null,
-        ghlContactId: owner.ghlContactId,
+        ghlContactId: owner.ghlContactId ?? null,
         ghlLocationId: owner.ghlLocationId ?? null,
         passwordChanged: true,
       });
