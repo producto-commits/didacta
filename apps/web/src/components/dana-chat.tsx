@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { ApiHttpError } from '@/lib/api-client';
 import { danaApi, type DanaMessage } from '@/lib/dana';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
+import { markdownToSafeHtml } from '@/lib/markdown';
 
 interface Props {
   /**
@@ -128,7 +129,16 @@ export function DanaChat({ conversationId, closed = false, onConversation }: Pro
                     : 'mr-8 rounded-2xl rounded-tl-sm bg-surface-2 px-3 py-2 text-sm text-text'
                 }
               >
-                <p className="whitespace-pre-line">{m.text}</p>
+                {m.direction === 'IN' ? (
+                  // Lo que escribe el alumno se pinta plano (no interpreta markdown).
+                  <p className="whitespace-pre-line">{m.text}</p>
+                ) : (
+                  // Las respuestas de Dana vienen en Markdown: se renderizan seguras.
+                  <div
+                    className="chat-md"
+                    dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(m.text) }}
+                  />
+                )}
                 <p className="mt-0.5 text-[10px] uppercase tracking-wide opacity-70">
                   {m.direction === 'IN' ? t('reto.danaYou') : t('reto.danaHer')}
                 </p>

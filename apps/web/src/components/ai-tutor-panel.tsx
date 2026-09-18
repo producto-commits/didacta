@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiHttpError } from '@/lib/api-client';
 import type { TranslatorLike } from '@/lib/i18n/labels';
+import { markdownToSafeHtml } from '@/lib/markdown';
 import { formatMmSs } from '@/lib/transcript';
 import { aiTutorApi, type AskResponseView, type CitationView } from '@/modules/ai-tutor';
 
@@ -142,9 +143,10 @@ export function AiTutorPanel({ courseId, lessonId, lessonTitle, positionSeconds,
                   <p className="text-xs font-semibold uppercase tracking-wide text-trust-700">
                     {t('aiTutor.tutor')}
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-text">
-                    {turn.answer}
-                  </p>
+                  <div
+                    className="chat-md mt-1 text-sm leading-relaxed text-text"
+                    dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(turn.answer) }}
+                  />
                   {turn.citations.length > 0 ? (
                     <div className="mt-3 space-y-1.5">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
