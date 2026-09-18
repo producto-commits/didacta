@@ -242,7 +242,14 @@ export class PasswordResetService {
 
     const owner = await this.prisma.user.findUnique({
       where: { id: record.userId },
-      select: { status: true, passwordHash: true },
+      select: {
+        status: true,
+        passwordHash: true,
+        email: true,
+        name: true,
+        ghlContactId: true,
+        ghlLocationId: true,
+      },
     });
     const activarInvitado = owner?.status === 'PENDING' && owner.passwordHash === null;
 
@@ -267,6 +274,52 @@ export class PasswordResetService {
       ip: ctx.ip ?? undefined,
       userAgent: ctx.userAgent ?? undefined,
     });
+
+    // Feedback a GoHighLevel (n8n): solo para contactos enlazados con GHL, avisa
+    // que el contacto ya definió/cambió su contraseña con el link mágico. Con la
+    // misma información del contacto. Best-effort: no afecta al reset ya hecho.
+    if (owner?.ghlContactId) {
+      void this.notifyPasswordFeedback({
+        event: 'password_set',
+        userId: record.userId,
+        email: owner.email,
+        name: owner.name ?? null,
+        ghlContactId: owner.ghlContactId,
+        ghlLocationId: owner.ghlLocationId ?? null,
+        passwordChanged: true,
+      });
+    }
+  }
+
+  /**
+   * Webhook de feedback de contraseña (n8n/GHL): tras definir/cambiar la
+   * contraseña, POST best-effort a `FEEDBACK_PASSWORD_WEBHOOK_URL` con los datos
+   * del contacto y `passwordChanged: true`. Activo solo si la env está puesta;
+   * opcionalmente firma con `FEEDBACK_PASSWORD_WEBHOOK_SECRET` (cabecera
+   * `X-Feedback-Secret`). Nunca lanza: el reset ya se completó.
+   */
+  private async notifyPasswordFeedback(payload: Record<string, unknown>): Promise<void> {
+    const url = process.env['FEEDBACK_PASSWORD_WEBHOOK_URL']?.trim();
+    if (!url) return;
+    const secret = process.env['FEEDBACK_PASSWORD_WEBHOOK_SECRET']?.trim();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(secret ? { 'X-Feedback-Secret': secret } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      if (!res.ok) this.logger.warn(`feedback-password: webhook respondió ${res.status}`);
+    } catch (err) {
+      this.logger.warn(`feedback-password: fallo enviando el webhook: ${String(err)}`);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**
