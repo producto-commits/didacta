@@ -177,7 +177,54 @@ export class InscribeService {
       );
     }
 
+    // Enlace con GHL: avisa al webhook de n8n (best-effort) con el usuario y sus
+    // IDs de GHL, para que n8n cierre el vínculo (p. ej. escribir el userId de
+    // Didacta en el contacto de GHL). No bloquea ni rompe la inscripción.
+    void this.notifyLinkWebhook({
+      event: 'inscribe',
+      userId,
+      userCreated: created,
+      email: dto.email,
+      name: dto.name ?? null,
+      ghlContactId: dto.ghlContactId ?? null,
+      ghlLocationId: dto.ghlLocationId ?? null,
+      courseIds: dto.courseIds ?? [],
+      accessGroupIds: dto.accessGroupIds ?? [],
+      externalRef: dto.externalRef ?? null,
+    });
+
     return { userId, userCreated: created, enrollments, accessGroups };
+  }
+
+  /**
+   * Webhook de enlace con GoHighLevel (n8n): tras inscribir, POST best-effort a
+   * `INSCRIBE_LINK_WEBHOOK_URL` con los datos del usuario y sus IDs de GHL. Se
+   * activa solo si la env está puesta; opcionalmente firma con
+   * `INSCRIBE_LINK_WEBHOOK_SECRET` en la cabecera `X-Link-Secret`. Nunca lanza:
+   * un fallo del webhook no afecta a la inscripción ya realizada.
+   */
+  private async notifyLinkWebhook(payload: Record<string, unknown>): Promise<void> {
+    const url = process.env['INSCRIBE_LINK_WEBHOOK_URL']?.trim();
+    if (!url) return;
+    const secret = process.env['INSCRIBE_LINK_WEBHOOK_SECRET']?.trim();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(secret ? { 'X-Link-Secret': secret } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      if (!res.ok) this.logger.warn(`link-didacta: webhook respondió ${res.status}`);
+    } catch (err) {
+      this.logger.warn(`link-didacta: fallo enviando el webhook: ${String(err)}`);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**
