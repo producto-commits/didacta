@@ -1509,8 +1509,13 @@ model ModCertificatesTemplate {
   body         String
   /// Color principal en hex (#RRGGBB) usado en bordes y títulos
   primaryColor String   @default("#0f172a") @map("primary_color")
-  /// URL absoluta del logo del tenant (opcional)
+  /// Logo del tenant (opcional). Ruta estable del storage subida desde el PC
+  /// (`/api/v1/storage/file/<key>`) o una URL absoluta externa.
   logoUrl      String?  @map("logo_url")
+  /// Imagen de FONDO del certificado (opcional): el diseño ya maquetado que el
+  /// equipo sube desde el PC. Se dibuja a página completa detrás del texto.
+  /// Ruta estable del storage o URL absoluta externa.
+  backgroundUrl String? @map("background_url")
   /// Nombre del firmante (queda en el PDF)
   signerName   String?  @map("signer_name")
   signerTitle  String?  @map("signer_title")

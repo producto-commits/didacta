@@ -31,11 +31,17 @@ const TEMPLATE_EDITOR_ROLES = ['super_admin', 'tenant_admin', 'formador'] as con
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
+// Logo y fondo aceptan tanto la ruta ESTABLE del storage (relativa, subida
+// desde el PC: `/api/v1/storage/file/…`) como una URL absoluta externa; por eso
+// no se validan con `.url()` (que rechaza la ruta relativa).
+const assetRef = z.string().trim().max(2048).nullable().optional();
+
 const createTemplateSchema = z.object({
   name: z.string().min(1).max(120),
   body: z.string().min(1).max(2000),
   primaryColor: z.string().regex(HEX_RE).optional(),
-  logoUrl: z.string().url().nullable().optional(),
+  logoUrl: assetRef,
+  backgroundUrl: assetRef,
   signerName: z.string().max(200).nullable().optional(),
   signerTitle: z.string().max(200).nullable().optional(),
   isDefault: z.boolean().optional(),

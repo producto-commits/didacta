@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiHttpError } from '@/lib/api-client';
+import { uploadCertificateAsset } from '@/lib/community-upload';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
 import {
   certificateTemplatesApi,
@@ -30,6 +31,7 @@ export default function CertificateTemplatesPage() {
     body: t('certTemplates.defaultBody'),
     primaryColor: '#0f172a',
     logoUrl: '',
+    backgroundUrl: '',
     signerName: '',
     signerTitle: '',
     isDefault: false,
@@ -69,6 +71,7 @@ export default function CertificateTemplatesPage() {
       body: tpl.body,
       primaryColor: tpl.primaryColor,
       logoUrl: tpl.logoUrl ?? '',
+      backgroundUrl: tpl.backgroundUrl ?? '',
       signerName: tpl.signerName ?? '',
       signerTitle: tpl.signerTitle ?? '',
       isDefault: tpl.isDefault,
@@ -89,6 +92,7 @@ export default function CertificateTemplatesPage() {
       const payload: CertificateTemplateInput = {
         ...draft,
         logoUrl: draft.logoUrl ? draft.logoUrl : null,
+        backgroundUrl: draft.backgroundUrl ? draft.backgroundUrl : null,
         signerName: draft.signerName || null,
         signerTitle: draft.signerTitle || null,
       };
@@ -132,6 +136,7 @@ export default function CertificateTemplatesPage() {
       const payload: CertificateTemplateInput = {
         ...draft,
         logoUrl: draft.logoUrl ? draft.logoUrl : null,
+        backgroundUrl: draft.backgroundUrl ? draft.backgroundUrl : null,
         signerName: draft.signerName || null,
         signerTitle: draft.signerTitle || null,
       };
@@ -239,16 +244,20 @@ export default function CertificateTemplatesPage() {
                   placeholder="#0f172a"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tpl-logo">{t('certTemplates.logoLabel')}</Label>
-                <Input
-                  id="tpl-logo"
-                  type="url"
-                  value={draft.logoUrl ?? ''}
-                  onChange={(e) => setDraft({ ...draft, logoUrl: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
+              <UploadableAsset
+                id="tpl-logo"
+                label={t('certTemplates.logoLabel')}
+                value={draft.logoUrl ?? ''}
+                onChange={(v) => setDraft({ ...draft, logoUrl: v })}
+                hint="Sube el logo (PNG o JPG) desde tu computador, o pega un enlace."
+              />
+              <UploadableAsset
+                id="tpl-background"
+                label="Imagen de fondo (opcional)"
+                value={draft.backgroundUrl ?? ''}
+                onChange={(v) => setDraft({ ...draft, backgroundUrl: v })}
+                hint="El diseño ya maquetado (PNG o JPG, A4 horizontal). Se dibuja a página completa y el texto de las variables se superpone centrado."
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="tpl-signer">{t('certTemplates.signerNameLabel')}</Label>
                 <Input
@@ -401,5 +410,77 @@ export default function CertificateTemplatesPage() {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Campo de recurso (logo / fondo): enlace o subida desde el PC. Al subir,
+ * guarda la ruta estable del storage en `value`. PNG/JPG (lo que embebe el PDF).
+ */
+function UploadableAsset({
+  id,
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint: string;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://…  o sube un archivo"
+      />
+      <div>
+        <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-brand hover:underline">
+          <Icon name="image" className="h-3.5 w-3.5" />
+          {uploading ? 'Subiendo…' : 'Subir imagen desde mi computador'}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+            className="sr-only"
+            disabled={uploading}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              setErr(null);
+              setUploading(true);
+              try {
+                onChange(await uploadCertificateAsset(file));
+              } catch (uploadErr) {
+                setErr(
+                  uploadErr instanceof Error ? uploadErr.message : 'No se pudo subir la imagen.',
+                );
+              } finally {
+                setUploading(false);
+              }
+            }}
+          />
+        </label>
+        {value ? (
+          <button
+            type="button"
+            className="ml-3 text-xs text-text-muted hover:underline"
+            onClick={() => onChange('')}
+          >
+            Quitar
+          </button>
+        ) : null}
+      </div>
+      <p className="text-xs text-text-subtle">{hint}</p>
+      {err ? <p className="text-xs text-red-600">{err}</p> : null}
+    </div>
   );
 }

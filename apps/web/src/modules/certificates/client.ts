@@ -41,6 +41,7 @@ export interface CertificateTemplate {
   body: string;
   primaryColor: string;
   logoUrl: string | null;
+  backgroundUrl: string | null;
   signerName: string | null;
   signerTitle: string | null;
   isDefault: boolean;
@@ -53,6 +54,7 @@ export interface CertificateTemplateInput {
   body: string;
   primaryColor?: string;
   logoUrl?: string | null;
+  backgroundUrl?: string | null;
   signerName?: string | null;
   signerTitle?: string | null;
   isDefault?: boolean;

@@ -56,4 +56,34 @@ describe('renderCertificatePdf', () => {
     });
     expect(buf.slice(0, 5).toString('utf-8')).toBe('%PDF-');
   });
+
+  it('embebe la imagen de fondo cuando se provee backgroundData (PNG)', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const base = {
+      number: 'LS-2026-000005',
+      studentName: 'María García',
+      courseTitle: 'Curso con fondo',
+      issuedAt: new Date('2026-04-25'),
+    };
+    const conFondo = await renderCertificatePdf({ ...base, backgroundData: png });
+    const sinFondo = await renderCertificatePdf(base);
+    expect(conFondo.slice(0, 5).toString('utf-8')).toBe('%PDF-');
+    // El fondo añade bytes de imagen → el PDF con fondo pesa más (control: el
+    // mismo certificado sin fondo).
+    expect(conFondo.length).toBeGreaterThan(sinFondo.length);
+  });
+
+  it('si backgroundData es un buffer corrupto NO rompe la emisión', async () => {
+    const buf = await renderCertificatePdf({
+      number: 'LS-2026-000006',
+      studentName: 'Alumno Y',
+      courseTitle: 'Curso resiliente',
+      issuedAt: new Date(),
+      backgroundData: Buffer.from('tampoco-es-una-imagen'),
+    });
+    expect(buf.slice(0, 5).toString('utf-8')).toBe('%PDF-');
+  });
 });

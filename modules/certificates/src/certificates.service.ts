@@ -16,6 +16,24 @@ import {
   TemplateNotFoundError,
 } from './errors.js';
 
+/** Prefijo de la ruta estable que sirve `StorageFileController` (apps/api). */
+const STORAGE_FILE_PREFIX = '/api/v1/storage/file/';
+
+/**
+ * Devuelve la storage key si `value` es una ruta estable de nuestro storage
+ * (subida desde el PC); null si es una URL externa (se baja por HTTP). Se
+ * inlinea aquí porque un módulo no puede importar de `apps/api`.
+ */
+function internalStorageKey(value: string): string | null {
+  const i = value.indexOf(STORAGE_FILE_PREFIX);
+  if (i === -1) return null;
+  const key = value
+    .slice(i + STORAGE_FILE_PREFIX.length)
+    .split('?')[0]!
+    .split('#')[0]!;
+  return key || null;
+}
+
 export interface IssueCertificateInput {
   tenantId: string;
   enrollmentId: string;
@@ -28,6 +46,7 @@ export interface TemplateInput {
   body: string;
   primaryColor?: string;
   logoUrl?: string | null;
+  backgroundUrl?: string | null;
   signerName?: string | null;
   signerTitle?: string | null;
   isDefault?: boolean;
@@ -85,7 +104,10 @@ export class CertificatesService {
     const template = await this.getEffectiveTemplate(input.tenantId, course.certificateTemplateId);
 
     const issuedAt = new Date();
-    const logoData = template?.logoUrl ? await this.fetchLogo(template.logoUrl) : undefined;
+    const logoData = template?.logoUrl ? await this.fetchImageAsset(template.logoUrl) : undefined;
+    const backgroundData = template?.backgroundUrl
+      ? await this.fetchImageAsset(template.backgroundUrl)
+      : undefined;
     const studentName = user.name ?? user.email;
 
     // La clave de storage cuelga del ID del certificado, NO de su numero. Con
@@ -121,6 +143,7 @@ export class CertificatesService {
         signerTitle: template?.signerTitle,
         tenantName: tenant.name,
         logoData,
+        backgroundData,
       });
       hash = createHash('sha256').update(pdf).digest('hex');
       await this.ctx.storage.upload(storageKey, pdf, 'application/pdf');
@@ -152,6 +175,7 @@ export class CertificatesService {
               signerTitle: template?.signerTitle ?? null,
               tenantName: tenant.name,
               logoUrl: template?.logoUrl ?? null,
+              backgroundUrl: template?.backgroundUrl ?? null,
             } as never,
           },
         });
@@ -268,8 +292,12 @@ export class CertificatesService {
       signerTitle?: string | null;
       tenantName?: string | null;
       logoUrl?: string | null;
+      backgroundUrl?: string | null;
     };
-    const logoData = snapshot.logoUrl ? await this.fetchLogo(snapshot.logoUrl) : undefined;
+    const logoData = snapshot.logoUrl ? await this.fetchImageAsset(snapshot.logoUrl) : undefined;
+    const backgroundData = snapshot.backgroundUrl
+      ? await this.fetchImageAsset(snapshot.backgroundUrl)
+      : undefined;
     return renderCertificatePdf({
       number: cert.number,
       studentName: snapshot.studentName ?? 'Alumno',
@@ -281,6 +309,7 @@ export class CertificatesService {
       signerTitle: snapshot.signerTitle ?? undefined,
       tenantName: snapshot.tenantName ?? undefined,
       logoData,
+      backgroundData,
     });
   }
 
@@ -323,6 +352,7 @@ export class CertificatesService {
           body: dto.body,
           primaryColor: dto.primaryColor ?? '#0f172a',
           logoUrl: dto.logoUrl ?? null,
+          backgroundUrl: dto.backgroundUrl ?? null,
           signerName: dto.signerName ?? null,
           signerTitle: dto.signerTitle ?? null,
           isDefault: dto.isDefault ?? false,
@@ -355,6 +385,7 @@ export class CertificatesService {
           ...(dto.body !== undefined ? { body: dto.body } : {}),
           ...(dto.primaryColor !== undefined ? { primaryColor: dto.primaryColor } : {}),
           ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
+          ...(dto.backgroundUrl !== undefined ? { backgroundUrl: dto.backgroundUrl } : {}),
           ...(dto.signerName !== undefined ? { signerName: dto.signerName } : {}),
           ...(dto.signerTitle !== undefined ? { signerTitle: dto.signerTitle } : {}),
           ...(dto.isDefault !== undefined ? { isDefault: dto.isDefault } : {}),
@@ -384,7 +415,10 @@ export class CertificatesService {
    */
   async renderTemplatePreview(tenantId: string, draft: TemplateInput): Promise<Buffer> {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
-    const logoData = draft.logoUrl ? await this.fetchLogo(draft.logoUrl) : undefined;
+    const logoData = draft.logoUrl ? await this.fetchImageAsset(draft.logoUrl) : undefined;
+    const backgroundData = draft.backgroundUrl
+      ? await this.fetchImageAsset(draft.backgroundUrl)
+      : undefined;
     return renderCertificatePdf({
       number: 'PREVIEW',
       studentName: 'Alumna de Ejemplo',
@@ -396,6 +430,7 @@ export class CertificatesService {
       signerTitle: draft.signerTitle ?? null,
       tenantName: tenant?.name,
       logoData,
+      backgroundData,
     });
   }
 
@@ -435,14 +470,39 @@ export class CertificatesService {
    * certificado se emite sin logo. La emisión NO debe fallar por un asset
    * de branding caído.
    */
-  private async fetchLogo(url: string): Promise<Buffer | undefined> {
+  /**
+   * Descarga una imagen (logo o fondo) para incrustarla en el PDF. Distingue dos
+   * orígenes:
+   *   - RUTA ESTABLE de nuestro storage (`/api/v1/storage/file/<key>`, lo que
+   *     sube el equipo desde el PC): se lee directo del adapter por su key. No
+   *     sirve `fetch()` porque es una ruta relativa (sin host) y ademas evita
+   *     una vuelta HTTP innecesaria.
+   *   - URL absoluta externa (compat con logos por enlace): se baja por HTTP con
+   *     timeout y tope de tamaño.
+   * Nunca lanza: si algo falla, el PDF se dibuja sin esa imagen.
+   */
+  private async fetchImageAsset(value: string): Promise<Buffer | undefined> {
+    const MAX_BYTES = 4 * 1024 * 1024; // 4 MiB (un fondo A4 pesa mas que un logo)
+    const key = internalStorageKey(value);
+    if (key) {
+      try {
+        const buf = await this.ctx.storage.download(key);
+        return buf.byteLength <= MAX_BYTES ? buf : undefined;
+      } catch (err) {
+        this.ctx.logger.warn('mod.certificates: fallo al leer imagen del storage', {
+          key,
+          error: (err as Error).message,
+        });
+        return undefined;
+      }
+    }
+
     const TIMEOUT_MS = 5_000;
-    const MAX_BYTES = 2 * 1024 * 1024; // 2 MiB
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
       try {
-        const res = await fetch(url, { signal: controller.signal });
+        const res = await fetch(value, { signal: controller.signal });
         if (!res.ok) return undefined;
         const contentLength = Number(res.headers.get('content-length') ?? '0');
         if (contentLength > MAX_BYTES) return undefined;
@@ -453,8 +513,8 @@ export class CertificatesService {
         clearTimeout(timer);
       }
     } catch (err) {
-      this.ctx.logger.warn('mod.certificates: fallo al descargar logo del tenant', {
-        url,
+      this.ctx.logger.warn('mod.certificates: fallo al descargar imagen externa', {
+        url: value,
         error: (err as Error).message,
       });
       return undefined;

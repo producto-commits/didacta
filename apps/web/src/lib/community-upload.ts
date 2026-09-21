@@ -70,6 +70,8 @@ function readAsBase64(file: File): Promise<string> {
 
 /** Ajustes de optimización que reenviamos al backend (auto-optimiza por defecto). */
 export interface UploadOptimizeOptions {
+  /** `false` guarda el original SIN recomprimir a WebP (p.ej. para pdfkit). */
+  enabled?: boolean;
   maxWidth?: number;
   quality?: number;
 }
@@ -93,7 +95,7 @@ async function callUploadEndpoint(
       data: base64,
       filename,
       contentType,
-      ...(optimize ? { optimize: { enabled: true, ...optimize } } : {}),
+      ...(optimize ? { optimize } : {}),
     }),
   });
 
@@ -118,6 +120,23 @@ export async function uploadCommunityImage(
   }
   const base64 = await readAsBase64(file);
   return callUploadEndpoint(base64, file.name, file.type, optimize);
+}
+
+/**
+ * Sube un logo o imagen de fondo para el certificado. pdfkit (el renderer del
+ * PDF) solo embebe PNG/JPEG —ni WebP ni SVG—, así que subimos el ORIGINAL sin
+ * recomprimir (`optimize.enabled=false`) y solo aceptamos PNG/JPG. Devuelve la
+ * ruta estable del storage.
+ */
+export async function uploadCertificateAsset(file: File): Promise<string> {
+  if (file.type !== 'image/png' && file.type !== 'image/jpeg') {
+    throw new Error('El logo y el fondo deben ser PNG o JPG (no WebP ni SVG).');
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error('La imagen supera el límite de 5 MB.');
+  }
+  const base64 = await readAsBase64(file);
+  return callUploadEndpoint(base64, file.name, file.type, { enabled: false });
 }
 
 export async function uploadCommunityFile(file: File): Promise<{ url: string; name: string }> {

@@ -22,6 +22,13 @@ export interface CertificateRenderInput {
    * embebe en la cabecera del certificado.
    */
   logoData?: Buffer;
+  /**
+   * Imagen de FONDO ya descargada (PNG/JPEG): el diseño ya maquetado que el
+   * equipo subió. Se dibuja a página completa detrás del texto. Cuando está
+   * presente, el renderer NO pinta su marco/banda por defecto (el diseño ya
+   * trae el suyo) y solo superpone el texto centrado.
+   */
+  backgroundData?: Buffer;
 }
 
 const DEFAULT_BODY =
@@ -63,20 +70,36 @@ export async function renderCertificatePdf(input: CertificateRenderInput): Promi
       const contentW = pageWidth - contentX * 2;
       const centered = { align: 'center' as const, width: contentW };
 
+      // ── Fondo diseñado (opcional): se estira a toda la página ───────────────
+      // Si el equipo subió un fondo ya maquetado, lo pintamos primero y NO
+      // dibujamos el marco/banda por defecto (chocarían con el diseño); el texto
+      // se superpone centrado.
+      let hasBackground = false;
+      if (input.backgroundData && input.backgroundData.length > 0) {
+        try {
+          doc.image(input.backgroundData, 0, 0, { width: pageWidth, height: pageHeight });
+          hasBackground = true;
+        } catch {
+          // Buffer corrupto / formato no soportado: seguimos con el marco por defecto.
+        }
+      }
+
       // ── Marco elegante: banda de acento arriba + doble filete fino ──────────
-      // Banda superior de color (identidad de marca).
-      doc.rect(0, 0, pageWidth, 10).fill(color);
-      // Filete exterior fino y filete interior aún más fino (marco doble sutil).
-      doc
-        .lineWidth(1.5)
-        .strokeColor(color)
-        .rect(28, 28, pageWidth - 56, pageHeight - 56)
-        .stroke();
-      doc
-        .lineWidth(0.5)
-        .strokeColor(color)
-        .rect(36, 36, pageWidth - 72, pageHeight - 72)
-        .stroke();
+      if (!hasBackground) {
+        // Banda superior de color (identidad de marca).
+        doc.rect(0, 0, pageWidth, 10).fill(color);
+        // Filete exterior fino y filete interior aún más fino (marco doble sutil).
+        doc
+          .lineWidth(1.5)
+          .strokeColor(color)
+          .rect(28, 28, pageWidth - 56, pageHeight - 56)
+          .stroke();
+        doc
+          .lineWidth(0.5)
+          .strokeColor(color)
+          .rect(36, 36, pageWidth - 72, pageHeight - 72)
+          .stroke();
+      }
 
       // ── Cabecera: logo del tenant o wordmark del nombre ─────────────────────
       let cursorY = 66;
