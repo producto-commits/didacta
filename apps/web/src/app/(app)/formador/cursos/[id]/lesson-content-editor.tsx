@@ -28,7 +28,24 @@ import { assessmentsApi } from '@/modules/assessments';
 import { coursesApi, type CourseLesson, type LessonType } from '@/lib/courses';
 import { scormApi, type ScormPackageMetadata } from '@/lib/scorm';
 import { uploadLessonVideo, captureVideoPoster, VideoUploadError } from '@/lib/video-upload';
+import { uploadCommunityFile } from '@/lib/community-upload';
 import { normalizeTranscript } from '@/lib/transcript';
+
+/** Recurso descargable adjunto a una lección: nombre visible + ruta estable. */
+interface LessonAttachment {
+  name: string;
+  url: string;
+}
+
+/** Lee `content.attachments` de forma tolerante (array de {name,url} válidos). */
+function readAttachments(content: Record<string, unknown>): LessonAttachment[] {
+  const raw = content['attachments'];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((a): a is Record<string, unknown> => typeof a === 'object' && a !== null)
+    .map((a) => ({ name: String(a['name'] ?? ''), url: String(a['url'] ?? '') }))
+    .filter((a) => a.url);
+}
 
 /** ISO → valor de `<input type="datetime-local">` en hora LOCAL (YYYY-MM-DDTHH:mm). */
 function isoToLocalInput(iso: string): string {
@@ -77,6 +94,13 @@ export function LessonContentEditor({
   const [pdfUrl, setPdfUrl] = useState(
     typeof content['pdfUrl'] === 'string' ? content['pdfUrl'] : '',
   );
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfUploadErr, setPdfUploadErr] = useState<string | null>(null);
+  // Recursos descargables: archivos subidos desde el PC (PDF, Word, Excel…).
+  // Disponibles en cualquier tipo de lección; el player los pinta como lista.
+  const [attachments, setAttachments] = useState<LessonAttachment[]>(readAttachments(content));
+  const [attachUploading, setAttachUploading] = useState(false);
+  const [attachErr, setAttachErr] = useState<string | null>(null);
   const [resources, setResources] = useState(
     typeof content['resources'] === 'string' ? content['resources'] : '',
   );
@@ -167,6 +191,12 @@ export function LessonContentEditor({
     };
   }
 
+  // Recursos descargables: solo si hay al menos un archivo (con url).
+  function attachmentsField(): Record<string, unknown> {
+    const clean = attachments.filter((a) => a.url);
+    return clean.length ? { attachments: clean } : {};
+  }
+
   function buildContent(): Record<string, unknown> {
     switch (lesson.type) {
       case 'VIDEO':
@@ -175,15 +205,23 @@ export function LessonContentEditor({
         // para poder borrarlo desde el editor.
         // `transcript`: lo que el tutor IA usa para responder sobre esta clase.
         // No se muestra al alumno; al guardar, la lección se reindexa sola.
-        return { videoUrl, videoPoster, resources, html, transcript, ...retoFields() };
+        return {
+          videoUrl,
+          videoPoster,
+          resources,
+          html,
+          transcript,
+          ...attachmentsField(),
+          ...retoFields(),
+        };
       case 'PDF':
-        return { pdfUrl };
+        return { pdfUrl, ...attachmentsField() };
       case 'HTML':
-        return { html };
+        return { html, ...attachmentsField() };
       case 'TEXT':
-        return { text };
+        return { text, ...attachmentsField() };
       case 'QUIZ':
-        return { quizId, ...retoFields() };
+        return { quizId, ...attachmentsField(), ...retoFields() };
       case 'SCORM':
         return content;
     }
@@ -411,6 +449,36 @@ export function LessonContentEditor({
             onChange={(e) => setPdfUrl(e.target.value)}
             placeholder={t('pdfUrlPlaceholder')}
           />
+          <div className="pt-1">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-brand hover:underline">
+              <Icon name="file" className="h-3.5 w-3.5" />
+              {pdfUploading ? 'Subiendo PDF…' : 'Subir PDF desde mi computador'}
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="sr-only"
+                disabled={pdfUploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setPdfUploadErr(null);
+                  setPdfUploading(true);
+                  try {
+                    const { url } = await uploadCommunityFile(file);
+                    setPdfUrl(url);
+                  } catch (err) {
+                    setPdfUploadErr(
+                      err instanceof Error ? err.message : 'No se pudo subir el PDF.',
+                    );
+                  } finally {
+                    setPdfUploading(false);
+                  }
+                }}
+              />
+            </label>
+            {pdfUploadErr && <p className="mt-1 text-xs text-red-600">{pdfUploadErr}</p>}
+          </div>
         </div>
       )}
 
@@ -532,6 +600,71 @@ export function LessonContentEditor({
               antes de completarse (el vídeo no lo cierra hasta que lo haga). Vacío = sin acción de
               IA.
             </p>
+          </div>
+        </div>
+      )}
+
+      {lesson.type !== 'SCORM' && (
+        <div className="space-y-1.5 border-t border-border-soft pt-4">
+          <Label htmlFor={`attach-${lesson.id}`}>Recursos descargables</Label>
+          <p className="text-xs text-text-subtle">
+            Archivos que el alumno podrá descargar en esta lección (PDF, Word, Excel, PowerPoint,
+            ZIP…). Se suben desde tu computador, máx. 10 MB cada uno.
+          </p>
+          {attachments.length > 0 && (
+            <ul className="space-y-1.5 pt-1">
+              {attachments.map((a, i) => (
+                <li
+                  key={`${a.url}-${i}`}
+                  className="flex items-center gap-2 rounded-md border border-border bg-surface-2 px-2.5 py-1.5"
+                >
+                  <Icon name="file" size={14} className="shrink-0 text-text-muted" />
+                  <span className="min-w-0 flex-1 truncate text-sm text-text">
+                    {a.name || a.url}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                    aria-label={`Quitar ${a.name || 'recurso'}`}
+                  >
+                    {t('remove')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="pt-1">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-brand hover:underline">
+              <Icon name="plus" className="h-3.5 w-3.5" />
+              {attachUploading ? 'Subiendo archivo…' : 'Añadir archivo'}
+              <input
+                id={`attach-${lesson.id}`}
+                type="file"
+                accept="application/pdf,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.txt,.csv,.json"
+                className="sr-only"
+                disabled={attachUploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setAttachErr(null);
+                  setAttachUploading(true);
+                  try {
+                    const { url, name } = await uploadCommunityFile(file);
+                    setAttachments((prev) => [...prev, { url, name }]);
+                  } catch (err) {
+                    setAttachErr(
+                      err instanceof Error ? err.message : 'No se pudo subir el archivo.',
+                    );
+                  } finally {
+                    setAttachUploading(false);
+                  }
+                }}
+              />
+            </label>
+            {attachErr && <p className="mt-1 text-xs text-red-600">{attachErr}</p>}
           </div>
         </div>
       )}
