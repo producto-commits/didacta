@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { ApiHttpError } from '@/lib/api-client';
 import { danaApi, type DanaMessage } from '@/lib/dana';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
-import { markdownToSafeHtml } from '@/lib/markdown';
+import { renderChatContent } from '@/lib/markdown';
 
 interface Props {
   /**
@@ -136,7 +136,7 @@ export function DanaChat({ conversationId, closed = false, onConversation }: Pro
                   // Las respuestas de Dana vienen en Markdown: se renderizan seguras.
                   <div
                     className="chat-md"
-                    dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(m.text) }}
+                    dangerouslySetInnerHTML={{ __html: renderChatContent(m.text) }}
                   />
                 )}
                 <p className="mt-0.5 text-[10px] uppercase tracking-wide opacity-70">

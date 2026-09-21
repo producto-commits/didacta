@@ -19,6 +19,22 @@ import { safeExternalUrl, sanitizeRichHtml } from '@/lib/sanitize-html';
  * cualquier `<script>` del agente queda como texto; (2) el HTML resultante pasa
  * por `sanitizeRichHtml` (DOMPurify con lista blanca), que es la frontera real.
  */
+/** Detecta si el texto ya trae etiquetas HTML (p.ej. `<p>…</p>` del agente). */
+const HTML_TAG = /<\/?[a-z][a-z0-9]*(?:\s[^>]*)?>/i;
+
+/**
+ * Normaliza el contenido de un mensaje de chat de IA para pintarlo bien:
+ *   - Si YA viene en HTML (el agente responde con `<p>…</p>`, `<br>`, `<strong>`…),
+ *     se sanea y se renderiza como HTML en vez de escaparlo (que mostraría las
+ *     etiquetas crudas).
+ *   - Si viene en Markdown o texto plano, se convierte con `markdownToSafeHtml`.
+ * En ambos casos el resultado pasa por el saneador (DOMPurify, lista blanca).
+ */
+export function renderChatContent(raw: string): string {
+  if (!raw) return '';
+  return HTML_TAG.test(raw) ? sanitizeRichHtml(raw) : markdownToSafeHtml(raw);
+}
+
 export function markdownToSafeHtml(md: string): string {
   if (!md) return '';
   // Separa los bloques de código con triple backtick (índices impares).

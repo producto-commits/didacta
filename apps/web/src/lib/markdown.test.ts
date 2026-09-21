@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { markdownToSafeHtml as md } from './markdown';
+import { markdownToSafeHtml as md, renderChatContent } from './markdown';
 
 describe('markdownToSafeHtml', () => {
   it('vacío → vacío', () => {
@@ -57,5 +57,24 @@ describe('markdownToSafeHtml', () => {
   });
   it('respeta saltos de línea dentro de un párrafo', () => {
     expect(md('línea uno\nlínea dos')).toBe('<p>línea uno<br>línea dos</p>');
+  });
+});
+
+describe('renderChatContent', () => {
+  it('respuesta en HTML del agente se renderiza como HTML (no muestra las etiquetas)', () => {
+    const out = renderChatContent('<p>¡Hola! 👋 Bienvenido a Dropi Academy.</p>');
+    expect(out).toBe('<p>¡Hola! 👋 Bienvenido a Dropi Academy.</p>');
+    expect(out).not.toContain('&lt;p&gt;');
+  });
+  it('HTML con formato permitido pasa; lo peligroso se elimina', () => {
+    const out = renderChatContent('<p>Mira <strong>esto</strong><script>alert(1)</script></p>');
+    expect(out).toContain('<strong>esto</strong>');
+    expect(out).not.toContain('<script');
+  });
+  it('sin etiquetas HTML, cae al conversor de markdown', () => {
+    expect(renderChatContent('Hola **mundo**')).toBe('<p>Hola <strong>mundo</strong></p>');
+  });
+  it('vacío → vacío', () => {
+    expect(renderChatContent('')).toBe('');
   });
 });
