@@ -22,33 +22,12 @@ import { ZodValidationPipe } from '../auth/zod-validation.pipe';
 import type { SessionClaims } from '../auth/token.service';
 import { ModuleContextFactory } from './module-context.factory';
 import { detectRasterContentType, optimizeImage, swapExtension } from './image-optimizer';
+import { extractStorageKey, storageAssetPath } from './storage-path';
 
 const UPLOAD_ROLES = new Set(['super_admin', 'tenant_admin', 'formador', 'alumno']);
 
 /** Reoptimizar imágenes existentes es una acción de gestión: no la abre a alumnos. */
 const OPTIMIZE_ROLES = new Set(['super_admin', 'tenant_admin', 'formador']);
-
-/** Marcador de las URLs que sirve el storage local (`StorageFileController`). */
-const LOCAL_FILE_MARKER = '/api/v1/storage/file/';
-
-/**
- * Extrae la storage key de una URL servida por el storage local. Devuelve null
- * si la URL no apunta a nuestro storage (p.ej. un CDN externo o una imagen que
- * el usuario pegó a mano) — en ese caso no podemos reprocesarla. Solo leemos de
- * nuestro propio adapter, así que no hay riesgo de SSRF.
- */
-function extractLocalStorageKey(url: string): string | null {
-  const idx = url.indexOf(LOCAL_FILE_MARKER);
-  if (idx === -1) return null;
-  let key = url.slice(idx + LOCAL_FILE_MARKER.length);
-  key = key.split('?')[0]!.split('#')[0]!;
-  try {
-    key = decodeURIComponent(key);
-  } catch {
-    // Si el decode falla dejamos la key tal cual; el adapter la saneará.
-  }
-  return key || null;
-}
 
 /**
  * Tipos MIME admitidos para subir: imágenes + documentos ofimáticos (Word, Excel,
@@ -102,9 +81,11 @@ const uploadSchema = z.object({
 
 type UploadDto = z.infer<typeof uploadSchema>;
 
-/** Reoptimiza una imagen ya subida (identificada por su URL de storage). */
+/** Reoptimiza una imagen ya subida (identificada por su ruta/URL de storage). */
 const optimizeExistingSchema = z.object({
-  url: z.string().url(),
+  // Acepta la ruta ESTABLE relativa (`/api/v1/storage/file/…`), que no es una
+  // URL absoluta, además de URLs pre-firmadas antiguas.
+  url: z.string().trim().min(1).max(2048),
   maxWidth: z.number().int().min(64).max(4096).optional(),
   quality: z.number().int().min(40).max(95).optional(),
 });
@@ -193,10 +174,9 @@ export class StorageController {
     // píxel), y entonces bajamos al `upload` crudo.
     if (dto.optimize?.enabled === false) {
       await storage.upload(requestedKey, buffer, dto.contentType);
-      const rawUrl = await storage.getSignedUrl(requestedKey);
       return {
         key: requestedKey,
-        url: rawUrl,
+        url: storageAssetPath(requestedKey),
         contentType: dto.contentType,
         size: buffer.length,
         optimized: false,
@@ -207,11 +187,9 @@ export class StorageController {
       ...(dto.optimize?.maxWidth !== undefined ? { maxWidth: dto.optimize.maxWidth } : {}),
       ...(dto.optimize?.quality !== undefined ? { quality: dto.optimize.quality } : {}),
     });
-    const url = await storage.getSignedUrl(stored.key);
-
     return {
       key: stored.key,
-      url,
+      url: storageAssetPath(stored.key),
       contentType: stored.contentType,
       size: stored.size,
       previousSize: stored.previousSize,
@@ -237,7 +215,7 @@ export class StorageController {
       });
     }
 
-    const key = extractLocalStorageKey(dto.url);
+    const key = extractStorageKey(dto.url);
     if (!key) {
       throw new BadRequestException({
         message: 'La imagen no está alojada en el storage de Didacta; no se puede optimizar.',
@@ -303,10 +281,9 @@ export class StorageController {
       optimized.extension,
     );
     await storage.upload(newKey, optimized.buffer, optimized.contentType);
-    const url = await storage.getSignedUrl(newKey);
 
     return {
-      url,
+      url: storageAssetPath(newKey),
       contentType: optimized.contentType,
       size: optimized.buffer.length,
       previousSize: original.length,

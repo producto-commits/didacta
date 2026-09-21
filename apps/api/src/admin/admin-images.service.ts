@@ -13,6 +13,7 @@ import {
   swapExtension,
   type OptimizeImageOptions,
 } from '../modules/image-optimizer';
+import { storageAssetPath } from '../modules/storage-path';
 
 /**
  * Inventario y reoptimización de las imágenes YA subidas del tenant.
@@ -287,7 +288,9 @@ export class AdminImagesService {
       optimized.extension,
     );
     await storage.upload(newKey, optimized.buffer, optimized.contentType);
-    const newUrl = await storage.getSignedUrl(newKey);
+    // Ruta ESTABLE, no firmada: la firma caduca y la imagen se rompería. La
+    // ruta la re-firma `StorageFileController` en cada lectura.
+    const newUrl = storageAssetPath(newKey);
 
     await this.repoint(tenantId, ref, newUrl, newKey, optimized.contentType);
 

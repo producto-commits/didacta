@@ -87,7 +87,9 @@ describe('StorageController · POST /storage/upload (FU-5)', () => {
         filename: 'pixel.png',
         contentType: 'image/png',
       });
-      expect(result.url).toMatch(/^https:\/\/cdn\.example\.test\//);
+      // El endpoint persiste la RUTA ESTABLE (no una URL firmada que caduca);
+      // `StorageFileController` la re-firma en cada lectura.
+      expect(result.url).toMatch(/^\/api\/v1\/storage\/file\/tenants\/tenant-1\/uploads\//);
       expect(result.contentType).toBe('image/png');
       expect(spies.getStorageForTenant).toHaveBeenCalledWith('tenant-1');
       expect(spies.upload).toHaveBeenCalledTimes(1);
