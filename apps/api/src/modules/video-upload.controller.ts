@@ -94,7 +94,7 @@ export class VideoUploadController {
   async presign(
     @CurrentUser() user: SessionClaims | undefined,
     @Body(new ZodValidationPipe(presignSchema)) dto: PresignDto,
-  ): Promise<{ uploadUrl: string; key: string; playbackUrl: string }> {
+  ): Promise<{ uploadUrl: string; key: string; playbackUrl: string; multipart: boolean }> {
     if (!user) throw new UnauthorizedException();
     if (!user.roles.some((r) => VIDEO_UPLOAD_ROLES.has(r))) {
       throw new ForbiddenException('No tienes permiso para subir vídeos.');
@@ -104,7 +104,7 @@ export class VideoUploadController {
     if (typeof storage.getUploadUrl !== 'function') {
       throw new BadRequestException({
         message:
-          'La subida de vídeos requiere almacenamiento de objetos (S3/MinIO). Configura STORAGE_DRIVER=s3 y las variables S3_*.',
+          'La subida de vídeos requiere almacenamiento de objetos (S3/MinIO/GCS). Configura STORAGE_DRIVER y sus variables.',
         code: 'VIDEO_UPLOAD_REQUIRES_S3',
       });
     }
@@ -114,7 +114,10 @@ export class VideoUploadController {
     const key = `videos/${user.tenantId}/${randomUUID()}.${ext}`;
     const uploadUrl = await storage.getUploadUrl(key, dto.contentType, 3600);
 
-    return { uploadUrl, key, playbackUrl: `/api/v1/storage/video/${key}` };
+    // `multipart`: el driver soporta subida por partes estilo S3 (MinIO/S3). GCS
+    // no (usa PUT único), así el cliente sabe que NO debe trocear los grandes.
+    const multipart = typeof storage.createMultipartUpload === 'function';
+    return { uploadUrl, key, playbackUrl: `/api/v1/storage/video/${key}`, multipart };
   }
 
   @Post('multipart/create')

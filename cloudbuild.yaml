@@ -1,0 +1,69 @@
+# Cloud Build · Dropi Academy (Didacta) -> Cloud Run (GCP)
+# ------------------------------------------------------------------
+# Se dispara con cada push a `main` (trigger de GitHub). Construye la imagen del
+# MONOREPO (API NestJS + Web Next en un contenedor), la sube a Artifact Registry
+# con tag = SHORT_SHA (+ latest) y despliega el ÚNICO servicio Cloud Run
+# `dropi-academy`. Modelo SIMPLE (un servicio, auto-deploy), como Pulso.
+#
+# El servicio se CREA a mano una vez con todo su env/secretos/Cloud SQL/VPC
+# (ver docs/deploy-gcp.md, pasos 4–9). Aquí SOLO se actualiza la imagen: ningún
+# secreto vive en el repo. Las migraciones (prisma migrate deploy + rls/grants/
+# seed) las corre el entrypoint al arrancar el contenedor.
+#
+# Requisitos one-time (docs/deploy-gcp.md):
+#   - APIs: run, cloudbuild, artifactregistry, secretmanager, sqladmin, redis,
+#     vpcaccess, storage.
+#   - Repo `dropi-academy` en Artifact Registry (us-central1).
+#   - Servicio Cloud Run `dropi-academy` creado con env/secretos + Cloud SQL + VPC.
+#   - SA de Cloud Build con roles: Cloud Run Admin, Artifact Registry Writer,
+#     Service Account User sobre la SA de runtime, Logs Writer.
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE: dropi-academy
+  _IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/dropi-academy/app
+  _RUNTIME_SA: dropi-academy-run@${PROJECT_ID}.iam.gserviceaccount.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8 # el build del monorepo (next build + nest) pesa
+  env: ['DOCKER_BUILDKIT=1']
+
+steps:
+  # 1) Build de la imagen del monorepo (Dockerfile de la raíz). El build es
+  #    AMD64 nativo en la nube (se acabó construir en el Mac arm64).
+  - name: gcr.io/cloud-builders/docker
+    id: build
+    args:
+      - build
+      - '-t=${_IMAGE}:${SHORT_SHA}'
+      - '-t=${_IMAGE}:latest'
+      - '.'
+
+  # 2) Push de ambos tags a Artifact Registry.
+  - name: gcr.io/cloud-builders/docker
+    id: push
+    args: ['push', '--all-tags', '${_IMAGE}']
+
+  # 3) Deploy a Cloud Run (solo imagen + SA; env/secretos/Cloud SQL/VPC/puerto ya
+  #    viven en el servicio desde su creación). --port=3000: el Web es la puerta y
+  #    proxya /api al API interno (:4000). App pública; el control de acceso lo
+  #    hace la propia app (JWT/MFA/tenancy).
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --project=${PROJECT_ID}
+      - --region=${_REGION}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --service-account=${_RUNTIME_SA}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --quiet
+
+images:
+  - '${_IMAGE}:${SHORT_SHA}'
+  - '${_IMAGE}:latest'

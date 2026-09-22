@@ -49,6 +49,8 @@ interface PresignResponse {
   uploadUrl: string;
   key: string;
   playbackUrl: string;
+  /** El driver soporta multipart estilo S3 (MinIO/S3). GCS = false (PUT único). */
+  multipart: boolean;
 }
 
 /**
@@ -142,24 +144,29 @@ export async function uploadLessonVideo(
     throw new VideoUploadError('too-large', 'El vídeo supera el tamaño máximo (5 GB).');
   }
 
-  // Ficheros pequeños: un único PUT firmado (camino simple y probado).
-  if (file.size <= MULTIPART_THRESHOLD) {
-    const presign = await apiFetch<PresignResponse>(
-      '/api/v1/storage/video/presign',
-      {
-        method: 'POST',
-        body: JSON.stringify({ filename: file.name, contentType, sizeBytes: file.size }),
-      },
-      withAuth(),
-    );
-    await putBlobRetrying(presign.uploadUrl, file, contentType, (loaded) =>
-      onProgress?.(Math.round((loaded / file.size) * 100)),
-    );
-    return presign.playbackUrl;
+  // Siempre pedimos el presign: además de la URL de PUT único, dice si el driver
+  // soporta multipart (S3/MinIO sí, GCS no).
+  const presign = await apiFetch<PresignResponse>(
+    '/api/v1/storage/video/presign',
+    {
+      method: 'POST',
+      body: JSON.stringify({ filename: file.name, contentType, sizeBytes: file.size }),
+    },
+    withAuth(),
+  );
+
+  // Ficheros grandes en un driver con multipart (S3/MinIO): subida por partes,
+  // porque un PUT gigante detrás de un proxy se corta. En GCS se sube directo
+  // (sin proxy) con un único PUT, aunque sea grande.
+  if (presign.multipart && file.size > MULTIPART_THRESHOLD) {
+    return uploadLessonVideoMultipart(file, contentType, onProgress);
   }
 
-  // Ficheros grandes: subida por partes (multipart).
-  return uploadLessonVideoMultipart(file, contentType, onProgress);
+  // PUT único firmado (ficheros pequeños en cualquier driver, o grandes en GCS).
+  await putBlobRetrying(presign.uploadUrl, file, contentType, (loaded) =>
+    onProgress?.(Math.round((loaded / file.size) * 100)),
+  );
+  return presign.playbackUrl;
 }
 
 interface MultipartCreateResponse {

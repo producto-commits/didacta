@@ -18,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { StorageService } from '@didacta/core-kernel';
 import { LocalDiskStorageService } from './local-disk-storage.service';
 import { S3StorageService, buildS3StorageFromEnv } from './s3-storage.service';
+import { buildGcsStorageFromEnv } from './gcs-storage.service';
 import { withImageOptimization } from './image-optimizing-storage';
 import { OutboxMetrics } from './outbox.metrics';
 import { OutboxQueueService } from './outbox-queue.service';
@@ -50,6 +51,13 @@ function buildStorage(): StorageService & {
   const driver = process.env['STORAGE_DRIVER'];
   if (driver === 'local') {
     return withImageOptimization(new LocalDiskStorageService());
+  }
+  if (driver === 'gcs') {
+    const gcs = buildGcsStorageFromEnv();
+    if (!gcs) {
+      throw new Error('STORAGE_DRIVER=gcs pero falta GCS_BUCKET (o S3_BUCKET como alias)');
+    }
+    return withImageOptimization(gcs);
   }
   const s3 = buildS3StorageFromEnv();
   if (s3) {
