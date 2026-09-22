@@ -169,6 +169,29 @@ strip_url_query() {
   printf '%s' "${1%%\?*}"
 }
 
+# Cadena de conexión para `psql` a partir de la URL admin. En Cloud SQL la
+# conexión es por SOCKET (`?host=/cloudsql/<conn>`): psql/libpq NO toma ese socket
+# del authority `@localhost` (intentaría TCP a localhost y fallaría el arranque),
+# hay que darlo como conninfo `host=<socket>`. Fuera de ese caso, devuelve la URL
+# sin query (comportamiento previo, TCP normal).
+admin_psql_conn() {
+  local url="$1" sock u p db pe
+  sock="$(printf '%s' "$url" | sed -n 's/.*[?&]host=\([^&#]*\).*/\1/p')"
+  if [[ -n "$sock" && "$sock" == /* ]]; then
+    if [[ "$url" =~ ^postgres(ql)?://([^:@/]+)(:([^@/]*))?@[^/?]*/([^?]+) ]]; then
+      u="${BASH_REMATCH[2]}"
+      p="${BASH_REMATCH[4]:-}"
+      db="${BASH_REMATCH[5]}"
+      # Escapa `\` y `'` para el formato keyword/value de libpq.
+      pe="${p//\\/\\\\}"
+      pe="${pe//\'/\\\'}"
+      printf "host='%s' user='%s' password='%s' dbname='%s'" "$sock" "$u" "$pe" "$db"
+      return 0
+    fi
+  fi
+  strip_url_query "$url"
+}
+
 ensure_pgvector_extension() {
   local admin_url="$1"
   if ! command -v psql >/dev/null 2>&1; then
@@ -176,7 +199,7 @@ ensure_pgvector_extension() {
     return 0
   fi
   local psql_url
-  psql_url="$(strip_url_query "$admin_url")"
+  psql_url="$(admin_psql_conn "$admin_url")"
   log "Activando extensión pgvector si no existe…"
   if ! psql "$psql_url" -v ON_ERROR_STOP=1 -c "CREATE EXTENSION IF NOT EXISTS vector;" >/dev/null 2>&1; then
     log "WARN: no se pudo activar pgvector. Si tu Postgres no es pgvector/pgvector la app fallará al crear tablas con tipo 'vector'."
@@ -206,7 +229,7 @@ run_migrations() {
 
   if command -v psql >/dev/null 2>&1; then
     local admin_psql_url
-    admin_psql_url="$(strip_url_query "$admin_url")"
+    admin_psql_url="$(admin_psql_conn "$admin_url")"
 
     log "Aplicando políticas RLS…"
     psql "$admin_psql_url" -v ON_ERROR_STOP=1 -f packages/database/prisma/rls.sql
