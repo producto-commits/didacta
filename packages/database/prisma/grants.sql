@@ -87,23 +87,33 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 -- (ver `apps/api/src/marketplace/module-migration.service.ts`).
 GRANT CREATE ON SCHEMA public TO didacta_super;
 
--- Y lo que cree `didacta_super` (las tablas de los módulos del marketplace)
--- tiene que poder usarlo el rol con el que corre la aplicación: si no, el
--- módulo se instala y acto seguido no puede leer sus propias tablas.
--- `ALTER DEFAULT PRIVILEGES FOR ROLE` es la vía correcta — alcanza solo a los
--- objetos que crea ese rol, sin tocar los del resto.
-ALTER DEFAULT PRIVILEGES FOR ROLE didacta_super IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO didacta_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE didacta_super IN SCHEMA public
-  GRANT USAGE, SELECT ON SEQUENCES TO didacta_app;
-
--- El usuario que aplica los scripts tiene que poder asumir `didacta_super`
--- para que los `ALTER DEFAULT PRIVILEGES FOR ROLE` de arriba se acepten. En el
--- compose por defecto es el superuser del contenedor y le sobra. Si falla, se
--- avisa y se sigue: el resto de los grants no dependen de esto.
+-- El usuario que aplica los scripts tiene que ser MIEMBRO de `didacta_super`
+-- ANTES de poder alterar sus default privileges (abajo): PostgreSQL solo deja
+-- `ALTER DEFAULT PRIVILEGES FOR ROLE X` a un miembro de X (o a un superuser).
+-- En el compose por defecto el ejecutor es superuser y le sobra; en un backend
+-- gestionado (Cloud SQL) el admin NO es superuser, así que primero se hace
+-- miembro. Si no puede, se avisa y se sigue. VA ANTES del ALTER de abajo.
 DO $$
 BEGIN
   EXECUTE format('GRANT didacta_super TO %I', current_user);
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'No se pudo conceder didacta_super a %: %', current_user, SQLERRM;
+END $$;
+
+-- Y lo que cree `didacta_super` (las tablas de los módulos del marketplace)
+-- tiene que poder usarlo el rol con el que corre la aplicación: si no, el
+-- módulo se instala y acto seguido no puede leer sus propias tablas.
+-- `ALTER DEFAULT PRIVILEGES FOR ROLE` es la vía correcta — alcanza solo a los
+-- objetos que crea ese rol. Envuelto en un bloque que NO aborta el arranque:
+-- en Cloud SQL, si el admin no logró hacerse miembro de didacta_super arriba,
+-- esto se omite con aviso (solo afecta los grants por defecto de módulos del
+-- marketplace, no el arranque del core) en vez de matar el contenedor.
+DO $$
+BEGIN
+  ALTER DEFAULT PRIVILEGES FOR ROLE didacta_super IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO didacta_app;
+  ALTER DEFAULT PRIVILEGES FOR ROLE didacta_super IN SCHEMA public
+    GRANT USAGE, SELECT ON SEQUENCES TO didacta_app;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'ALTER DEFAULT PRIVILEGES FOR ROLE didacta_super omitido (backend gestionado): %', SQLERRM;
 END $$;
