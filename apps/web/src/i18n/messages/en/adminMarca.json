@@ -4,7 +4,7 @@
     "headerDescription": "Customize your organization's visual identity. Changes are saved when you click <strong>Save</strong>; you can see a preview while you edit.",
     "resetting": "Restoring…",
     "resetButton": "Restore default values",
-    "resetConfirm": "Restore the theme to the Didacta default values?",
+    "resetConfirm": "Restore the theme to the Dropi Academy default values?",
     "resetError": "Could not reset",
     "loadError": "Could not load the theme",
     "saveError": "Could not save the theme",
@@ -16,7 +16,7 @@
     "saturationLabel": "Saturation",
     "saturationHint": "Low saturations give pastel tones; high saturations, vibrant colors.",
     "typographyTitle": "Typography",
-    "typographyDescription": "Sora + Inter is the Didacta default. Other combinations are limited to Google Fonts compatible with the system hierarchy.",
+    "typographyDescription": "Sora + Inter is the Dropi Academy default. Other combinations are limited to Google Fonts compatible with the system hierarchy.",
     "displayFontLabel": "Headline font (display)",
     "bodyFontLabel": "Body font",
     "logoTitle": "Logo and favicon",
@@ -33,7 +33,7 @@
     "uploadBadType": "Unsupported format. Upload PNG, JPG, SVG or WebP.",
     "uploadTooBig": "The file exceeds 2 MB.",
     "uploadError": "We could not upload the logo.",
-    "removeConfirm": "Delete the uploaded logo? You will go back to the Didacta wordmark.",
+    "removeConfirm": "Delete the uploaded logo? You will go back to the Dropi Academy wordmark.",
     "removeError": "We could not delete the logo.",
     "logoModeLabel": "How should your brand be shown?",
     "logoModeOnly": "Logo only",
@@ -59,7 +59,7 @@
     "faviconUrlPlaceholder": "https://cdn.yourdomain.com/favicon.png",
     "faviconUrlHint": "Alternative: paste the https URL of a favicon already hosted on your domain.",
     "signinTitle": "Sign-in screen",
-    "signinDescription": "Copy for the dark panel of <code>/signin</code>. If you leave it empty, the generic Didacta text is used. The figures shown below (active students, published courses) are real and calculated automatically: they are not configured here.",
+    "signinDescription": "Copy for the dark panel of <code>/signin</code>. If you leave it empty, the generic Dropi Academy text is used. The figures shown below (active students, published courses) are real and calculated automatically: they are not configured here.",
     "headlineLabel": "Headline",
     "headlinePlaceholder": "Applied AI training, with the community that uses it every day.",
     "headlineHint": "Maximum 160 characters. It renders very large: a short sentence works best.",
@@ -86,8 +86,8 @@
     "saveButton": "Save changes",
     "upsellAria": "Enterprise white-label features",
     "upsellTitle": "Enterprise feature — upgrade your plan",
-    "upsellDescription": "The tenant's custom CSS and HTML footer are part of the Didacta Enterprise white-label package. Your current plan (community) does not include this feature.",
-    "upsellBody": "With an active Enterprise license you can inject your own CSS rules, replace the footer with custom HTML and hide the Didacta brand. The required capability is <code>feat:white_label</code>.",
+    "upsellDescription": "The tenant's custom CSS and HTML footer are part of the Dropi Academy Enterprise white-label package. Your current plan (community) does not include this feature.",
+    "upsellBody": "With an active Enterprise license you can inject your own CSS rules, replace the footer with custom HTML and hide the Dropi Academy brand. The required capability is <code>feat:white_label</code>.",
     "upsellCta": "See Enterprise plans"
   },
   "config": {
@@ -173,7 +173,7 @@
   },
   "tenants": {
     "title": "Tenants",
-    "description": "Organizations using Didacta. Only super_admin can create new tenants and assign custom domains.",
+    "description": "Organizations using Dropi Academy. Only super_admin can create new tenants and assign custom domains.",
     "loadError": "We could not load the tenants.",
     "createButton": "Create tenant",
     "createLockedTitle": "Your community plan already has one tenant. Activate Enterprise to add more.",
@@ -231,7 +231,7 @@
     "namePlaceholder": "ACME Corp",
     "hostnameLabel": "Primary domain",
     "hostnamePlaceholder": "learn.acme.com",
-    "hostnameHint": "Where signin and signup will live. It can be a Didacta subdomain or a custom domain (in that case configure the CNAME externally).",
+    "hostnameHint": "Where signin and signup will live. It can be a Dropi Academy subdomain or a custom domain (in that case configure the CNAME externally).",
     "adminEmailLabel": "First admin email",
     "adminNameLabel": "Admin name (optional)",
     "cancel": "Cancel",
@@ -240,7 +240,7 @@
   },
   "dominios": {
     "title": "Custom domains",
-    "description": "Lets your organization access Didacta through a custom domain (e.g. <code>learn.acme.com</code>) instead of the shared subdomain.",
+    "description": "Lets your organization access Dropi Academy through a custom domain (e.g. <code>learn.acme.com</code>) instead of the shared subdomain.",
     "loadError": "The domains could not be loaded.",
     "addError": "The domain could not be added. Try again.",
     "verifyError": "The domain could not be validated.",
@@ -269,7 +269,7 @@
     "statusPending": "Pending",
     "upsellAria": "Custom domains (Enterprise)",
     "upsellTitle": "Enterprise feature — upgrade your plan",
-    "upsellDescription": "Custom domains are part of the Didacta Enterprise package. Your current plan (community) uses the shared subdomain <code>{slugHost}</code>; with Enterprise you can serve your LMS from your own hostname (e.g. <code>learn.acme.com</code>).",
+    "upsellDescription": "Custom domains are part of the Dropi Academy Enterprise package. Your current plan (community) uses the shared subdomain <code>{slugHost}</code>; with Enterprise you can serve your LMS from your own hostname (e.g. <code>learn.acme.com</code>).",
     "upsellBody": "The required capability is <code>feat:custom_domains</code>. If your Enterprise license expires or is revoked, validated domains become inert and users keep accessing through the shared subdomain — the saved configuration is NOT deleted.",
     "upsellCta": "See Enterprise plans"
   },
@@ -312,7 +312,7 @@
     "post": "Post image"
   },
   "skipReason": {
-    "externa": "Hosted outside Didacta",
+    "externa": "Hosted outside Dropi Academy",
     "noEncontrada": "The file is no longer in storage",
     "noRaster": "Vector (SVG): already lightweight",
     "yaOptima": "Already optimized"

@@ -43,8 +43,8 @@ const ibmPlex = IBM_Plex_Sans({
  */
 export const metadata: Metadata = {
   title: {
-    default: 'Didacta',
-    template: '%s | Didacta',
+    default: 'Dropi Academy',
+    template: '%s | Dropi Academy',
   },
   description: 'Plataforma educativa modular, abierta y preparada para escalar.',
   robots: { index: false, follow: false },

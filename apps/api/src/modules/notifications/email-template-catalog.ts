@@ -548,12 +548,12 @@ export function emailGreeting(name: string | null | undefined, locale?: string |
  */
 export const SMTP_SETTINGS_PING: Record<HubTemplateLang, TemplateDef> = {
   es: {
-    subject: 'Prueba de SMTP — Didacta',
-    body: 'Si recibiste este correo, la configuración SMTP de tu tenant en Didacta funciona correctamente.\n\nTenant: {{tenantSlug}}\nFecha: {{timestamp}}',
+    subject: 'Prueba de SMTP — Dropi Academy',
+    body: 'Si recibiste este correo, la configuración SMTP de tu tenant en Dropi Academy funciona correctamente.\n\nTenant: {{tenantSlug}}\nFecha: {{timestamp}}',
   },
   en: {
-    subject: 'SMTP test — Didacta',
-    body: 'If you received this email, the SMTP configuration of your tenant in Didacta is working correctly.\n\nTenant: {{tenantSlug}}\nDate: {{timestamp}}',
+    subject: 'SMTP test — Dropi Academy',
+    body: 'If you received this email, the SMTP configuration of your tenant in Dropi Academy is working correctly.\n\nTenant: {{tenantSlug}}\nDate: {{timestamp}}',
   },
 };
 

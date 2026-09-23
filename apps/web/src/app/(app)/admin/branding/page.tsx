@@ -518,7 +518,7 @@ export default function BrandingPage() {
 
           {/*
            * Copy del panel de marca de /signin. Vive aquí y no hardcodeado en el
-           * web porque es texto DEL TENANT: Didacta es multi-tenant y no puede
+           * web porque es texto DEL TENANT: Dropi Academy es multi-tenant y no puede
            * llevar la frase de ningún tenant en su código.
            */}
           <Card>
@@ -648,7 +648,7 @@ export default function BrandingPage() {
                       color: `hsl(${form.brandHue}, ${form.brandSaturation}%, 30%)`,
                     }}
                   >
-                    Didacta
+                    Dropi Academy
                   </div>
                 )}
               </div>

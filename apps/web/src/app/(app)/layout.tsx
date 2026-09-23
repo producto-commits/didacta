@@ -47,7 +47,7 @@ import { MobileNavDrawer } from '@/components/mobile-nav-drawer';
 import { MobileTabBar } from '@/components/mobile-tab-bar';
 
 /**
- * Shell de la app autenticada — sidebar persistente Didacta + main canvas.
+ * Shell de la app autenticada — sidebar persistente Dropi Academy + main canvas.
  *
  * Las páginas siguen renderizando su propio `<h1>` y contenido. El shell solo
  * provee navegación + bell de notificaciones. Esto evita refactorizar
@@ -389,13 +389,13 @@ function Shell({
   const inLessonView = (pathname ?? '').startsWith('/cursos/') && pathname !== '/cursos';
   const focusSidebar = isStudent && inLessonView;
 
-  // `<title>` del documento: "Sección actual | Nombre del Tenant | Didacta".
-  // Antes todas las páginas mostraban solo "Didacta" (default del root layout):
+  // `<title>` del documento: "Sección actual | Nombre del Tenant | Dropi Academy".
+  // Antes todas las páginas mostraban solo "Dropi Academy" (default del root layout):
   // este shell es client component, así que en vez de metadata sincronizamos
   // document.title. La sección se deriva del pathname contra el mapa ruta→label
   // del propio sidebar (mergedGroups, sin filtrar por módulo para que el label
   // resuelva aunque activeModules aún no haya cargado). Si la ruta no está en el
-  // sidebar (p.ej. detalle), cae a "Tenant | Didacta". El nombre del tenant usa
+  // sidebar (p.ej. detalle), cae a "Tenant | Dropi Academy". El nombre del tenant usa
   // el nombre REAL resuelto por host (useTenantContext, igual que el sidebar),
   // con fallback al slug title-cased.
   const { tenant: hostTenant } = useTenantContext();
@@ -424,7 +424,9 @@ function Shell({
       : labelOr(tNav, `items.${sectionMatch.label}`, sectionMatch.label)
     : null;
   useEffect(() => {
-    const parts = [sectionLabel, tenantName, 'Didacta'].filter((p): p is string => Boolean(p));
+    const parts = [sectionLabel, tenantName, 'Dropi Academy'].filter((p): p is string =>
+      Boolean(p),
+    );
     document.title = parts.join(' | ');
   }, [sectionLabel, tenantName]);
 
@@ -543,7 +545,7 @@ function Shell({
  * mapa ruta→label del sidebar (más `extras`: rutas sin item de menú que igual
  * merecen nombre en el `<title>`, ya traducidas por quien llama). Match por
  * prefijo más largo (la ruta más específica gana); respeta `exactMatch`.
- * Devuelve null si ninguna ruta coincide (el `<title>` cae a "Tenant | Didacta").
+ * Devuelve null si ninguna ruta coincide (el `<title>` cae a "Tenant | Dropi Academy").
  *
  * `fromExtras` distingue el origen del label: los del sidebar son tokens
  * canónicos en español que el llamante aún tiene que pasar por `labelOr`; los

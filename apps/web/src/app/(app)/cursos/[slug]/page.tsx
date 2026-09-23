@@ -162,13 +162,13 @@ export default function CourseAlumnoPage() {
   }, [reload]);
 
   // El title de la pestaña dentro de un curso debe reflejar la clase activa (o,
-  // en su defecto, el nombre del curso) en vez del genérico "Didacta".
+  // en su defecto, el nombre del curso) en vez del genérico "Dropi Academy".
   useEffect(() => {
     if (!course) return;
     const active = course.modules.flatMap((m) => m.lessons).find((l) => l.id === activeLessonId);
     document.title = active?.title ? `${active.title} · ${course.title}` : course.title;
     return () => {
-      document.title = 'Didacta';
+      document.title = 'Dropi Academy';
     };
   }, [course, activeLessonId]);
 
@@ -945,7 +945,7 @@ function formatLockHint(availableAtIso: string, t: TranslatorLike): string {
 }
 
 /**
- * Avatar de lección estilo Didacta (CourseDetail.jsx > step):
+ * Avatar de lección estilo Dropi Academy (CourseDetail.jsx > step):
  *  - done → círculo verde crecimiento con check.
  *  - active → círculo Azul confianza con número.
  *  - todo → círculo gris claro con número apagado.

@@ -252,7 +252,7 @@ export default function BienvenidaPage() {
   const pendientes = ONBOARDING_STEPS.filter((p) => progreso.skipped.includes(p) && DESTINOS[p]);
 
   // La cabecera se pinta SIEMPRE — también durante la carga — para que la marca
-  // no parpadee al entrar. Durante la carga enseña la de Didacta.
+  // no parpadee al entrar. Durante la carga enseña la de Dropi Academy.
   const cabecera = (
     <header className="mb-6 flex items-center justify-center gap-2.5">
       {!cargando && tieneIdentidad ? (
@@ -286,7 +286,7 @@ export default function BienvenidaPage() {
       ) : (
         <>
           <Image src="/brand/anagrama.png" alt="" width={26} height={26} priority />
-          <span className="font-semibold text-night">Didacta</span>
+          <span className="font-semibold text-night">Dropi Academy</span>
         </>
       )}
     </header>

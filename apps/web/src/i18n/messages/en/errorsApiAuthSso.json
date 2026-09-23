@@ -56,6 +56,6 @@
   "SSO_SAML_EMAIL_MISSING": "The IdP did not return a valid email in the Assertion. Check the attribute mapping.",
   "SSO_SAML_CONFIG_MISSING": "This tenant has no SAML config.",
   "SSO_WP_ACCOUNT_INACTIVE": "Your account is not active. Contact the administrator.",
-  "SSO_WP_USER_NOT_PROVISIONED": "You don't have an account in Didacta. Ask the administrator to create one for you.",
+  "SSO_WP_USER_NOT_PROVISIONED": "You don't have an account in Dropi Academy. Ask the administrator to create one for you.",
   "SSO_WP_SHARED_SECRET_REQUIRED": "The shared secret is required the first time. Paste it (the same one as in wp-config.php); it will not be shown again."
 }

@@ -24,7 +24,7 @@ import { fetchTenantContext } from '@/lib/tenant-context';
  * tenant no se toca, así que el propio `document.title = …` no realimenta el
  * bucle.
  */
-const BRAND = 'Didacta';
+const BRAND = 'Dropi Academy';
 const PLAIN_SUFFIX = ` | ${BRAND}`;
 
 /** Exportada para poder testear la regla sin DOM. */

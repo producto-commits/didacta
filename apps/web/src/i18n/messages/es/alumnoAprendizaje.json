@@ -14,7 +14,7 @@
   },
   "attendanceConfidence": {
     "ZOOM": "Confirmado por Zoom",
-    "PROXY": "Abrió el enlace desde Didacta (sin confirmar por Zoom)",
+    "PROXY": "Abrió el enlace desde Dropi Academy (sin confirmar por Zoom)",
     "MANUAL": "Marcado a mano por un formador",
     "NONE": "Sin evidencia"
   },
@@ -141,7 +141,7 @@
   "syncing": "Sincronizando…",
   "syncWithZoom": "Sincronizar con Zoom",
   "zoomNoParticipants": "Zoom no devolvió los participantes: {error}",
-  "attendanceUnconfirmed": "Todavía no hemos podido confirmar la asistencia con Zoom. Lo que ves abajo es quién abrió el enlace desde Didacta.",
+  "attendanceUnconfirmed": "Todavía no hemos podido confirmar la asistencia con Zoom. Lo que ves abajo es quién abrió el enlace desde Dropi Academy.",
   "noAttendees": "Todavía no hay inscritos ni asistentes.",
   "emailAttendedWithout": "{email} · asistió sin inscribirse",
   "unidentifiedParticipant": "Participante de Zoom sin identificar",

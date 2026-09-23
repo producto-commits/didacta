@@ -70,7 +70,7 @@
   "STORAGE_IMAGE_OTHER_TENANT": "The image belongs to another tenant.",
   "STORAGE_INVALID_BASE64": "Invalid base64.",
   "STORAGE_MIME_NOT_ALLOWED": "MIME type not allowed.",
-  "STORAGE_NOT_DIDACTA_HOSTED": "The image is not hosted in Didacta's storage; it cannot be optimized.",
+  "STORAGE_NOT_DIDACTA_HOSTED": "The image is not hosted in Dropi Academy's storage; it cannot be optimized.",
   "STORAGE_OPTIMIZE_FORBIDDEN": "You do not have permission to optimize images.",
   "STORAGE_ORIGINAL_UNREADABLE": "We could not read the original image.",
   "STORAGE_UPLOAD_ROLE_REQUIRED": "You need to be authenticated with a valid role to upload files.",

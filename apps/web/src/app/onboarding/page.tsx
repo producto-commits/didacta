@@ -202,7 +202,7 @@ export default function OnboardingPage() {
     <div className="space-y-6">
       <header className="text-center">
         <p className="label-uppercase text-text-muted">
-          {t('onboarding.welcome', { name: tenant?.name ?? 'Didacta' })}
+          {t('onboarding.welcome', { name: tenant?.name ?? 'Dropi Academy' })}
         </p>
         <h1 className="font-display mt-2 text-2xl font-bold tracking-tight">
           {t('onboarding.title')}

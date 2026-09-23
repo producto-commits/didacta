@@ -221,7 +221,7 @@ export function SetupWizard() {
       <header className="mb-10 text-center">
         <p className="label-uppercase text-text-muted">{t('setup.kicker')}</p>
         <h1 className="font-display mt-2 text-4xl font-extrabold tracking-tight text-brand-700">
-          Didacta
+          Dropi Academy
         </h1>
         <p className="mt-1 text-sm text-text-subtle">{t('setup.tagline')}</p>
       </header>
