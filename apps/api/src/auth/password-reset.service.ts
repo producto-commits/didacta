@@ -104,6 +104,9 @@ export class PasswordResetService {
     tenantName: string;
     /** Idioma del DESTINATARIO — ver `resolveRecipientLocale`. */
     locale: string;
+    /** IDs de GoHighLevel del usuario, para el webhook de enlace (n8n/GHL). */
+    ghlContactId: string | null;
+    ghlLocationId: string | null;
   } | null> {
     const tenant = await this.resolveTenant(args);
     if (!tenant) return null;
@@ -128,6 +131,9 @@ export class PasswordResetService {
     tenantName: string;
     /** Idioma del DESTINATARIO — ver `resolveRecipientLocale`. */
     locale: string;
+    /** IDs de GoHighLevel del usuario, para el webhook de enlace (n8n/GHL). */
+    ghlContactId: string | null;
+    ghlLocationId: string | null;
   } | null> {
     const user = await this.prisma.user.findUnique({
       where: { tenantId_email: { tenantId: tenant.id, email: args.email } },
@@ -183,6 +189,8 @@ export class PasswordResetService {
       // name (caso bordeline en tests fake o data legacy), caemos a 'Didacta'.
       tenantName: (tenant as { name?: string | null }).name ?? 'Didacta',
       locale: resolveRecipientLocale(user.locale),
+      ghlContactId: user.ghlContactId ?? null,
+      ghlLocationId: user.ghlLocationId ?? null,
     };
   }
 
@@ -339,6 +347,50 @@ export class PasswordResetService {
   }
 
   /**
+   * Webhook de enlace de "define tu contraseña" (n8n/GoHighLevel): cuando se
+   * invita a un usuario al aula, POST best-effort a `INSCRIBE_LINK_WEBHOOK_URL`
+   * (el mismo webhook `link-didacta` que usa `/inscribe`) con el enlace mágico y
+   * los IDs de GHL del contacto, para que el CRM entregue el link. Activo solo
+   * si la env está puesta; opcionalmente firma con `INSCRIBE_LINK_WEBHOOK_SECRET`
+   * en la cabecera `X-Link-Secret` (mismo contrato que `inscribe.service.ts`).
+   * Nunca lanza: la invitación ya se disparó y no debe romperse por el webhook.
+   */
+  private async notifySetPasswordLinkWebhook(payload: {
+    event: 'auth.set_password_link';
+    email: string;
+    name: string | null;
+    setPasswordUrl: string;
+    tenantId: string;
+    ghlContactId: string | null;
+    ghlLocationId: string | null;
+  }): Promise<void> {
+    const url = process.env['INSCRIBE_LINK_WEBHOOK_URL']?.trim();
+    if (!url) return;
+    const secret = process.env['INSCRIBE_LINK_WEBHOOK_SECRET']?.trim();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(secret ? { 'X-Link-Secret': secret } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      if (!res.ok)
+        this.logger.warn(`link-didacta(set_password_link): webhook respondió ${res.status}`);
+    } catch (err) {
+      this.logger.warn(
+        `link-didacta(set_password_link): fallo enviando el webhook: ${String(err)}`,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * End-to-end del flujo "forgot": genera token + envía email vía SMTP
    * per-tenant. Envuelto en try/catch — si falla SMTP, el endpoint igual
    * responde 200 (anti user-enumeration). El detalle queda en logs.
@@ -375,11 +427,33 @@ export class PasswordResetService {
       tenantId: string;
       tenantName: string;
       locale: string;
+      ghlContactId: string | null;
+      ghlLocationId: string | null;
     },
     toEmail: string,
     webBaseUrl: string,
     opts: { allowPending?: boolean; ttlMinutes?: number; asInvitation?: boolean },
   ): Promise<void> {
+    // Webhook de enlace con GoHighLevel (n8n): cuando esto es una INVITACIÓN
+    // (no un "olvidé mi contraseña"), avisamos a n8n con el enlace mágico y los
+    // IDs de GHL para que el CRM entregue el link al contacto. Va ANTES del
+    // bloque SMTP a propósito: GHL puede ser el canal de entrega, así que el
+    // aviso debe salir aunque el tenant no tenga SMTP configurado. Best-effort:
+    // nunca bloquea ni rompe la invitación.
+    if (opts.asInvitation) {
+      const setPasswordUrl = `${webBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(
+        result.rawToken,
+      )}`;
+      void this.notifySetPasswordLinkWebhook({
+        event: 'auth.set_password_link',
+        email: toEmail,
+        name: result.userName,
+        setPasswordUrl,
+        tenantId: result.tenantId,
+        ghlContactId: result.ghlContactId,
+        ghlLocationId: result.ghlLocationId,
+      });
+    }
     // alpha.75 — pasamos por el TenantSmtpResolverService cuando está
     // disponible. Eso permite que el reset funcione aunque el tenant aún
     // no configuró SMTP propio: si el despliegue tiene SMTP_HOST/PORT/FROM
