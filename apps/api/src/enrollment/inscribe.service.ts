@@ -174,6 +174,8 @@ export class InscribeService {
         resolveRecipientLocale(dto.locale),
         webBaseUrl,
         ctx,
+        dto.ghlContactId ?? null,
+        dto.ghlLocationId ?? null,
       );
     }
 
@@ -496,31 +498,50 @@ export class InscribeService {
     locale: string,
     webBaseUrl: string,
     ctx: ClientContext,
+    ghlContactId: string | null,
+    ghlLocationId: string | null,
   ): Promise<void> {
     try {
-      const resolved = await this.smtpResolver.resolve(tenantId);
-      if (!resolved) {
-        this.logger.warn(
-          { tenantId },
-          'inscribe: ni tenant ni fallback global tienen SMTP — email de bienvenida no enviado',
-        );
-        return;
-      }
-
-      // Token de "define tu contraseña" con TTL largo (compra → puede abrirlo días después).
+      // Token de "define tu contraseña" con TTL largo (compra → puede abrirlo días
+      // después). Se genera ANTES del SMTP a propósito: el enlace puede entregarse
+      // por GoHighLevel (webhook de abajo), así que no debe depender de que el
+      // tenant tenga SMTP configurado.
       const issued = await this.passwordReset.request({ email, resolvedTenantId: tenantId }, ctx, {
         ttlMinutes: SET_PASSWORD_TTL_MINUTES,
       });
       if (!issued) {
         this.logger.warn(
           { tenantId },
-          'inscribe: no se pudo emitir el token de define-contraseña — email no enviado',
+          'inscribe: no se pudo emitir el token de define-contraseña — enlace no generado',
         );
         return;
       }
       const setPasswordUrl = `${webBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(
         issued.rawToken,
       )}`;
+
+      // Webhook del enlace mágico (n8n/GoHighLevel): el `event: inscribe` de arriba
+      // NO lleva el `setPasswordUrl`; este `auth.set_password_link` sí, para que el
+      // CRM entregue el enlace al contacto. Mismo destino `link-didacta` y mismos
+      // IDs de GHL. Best-effort: no bloquea el alta.
+      void this.notifyLinkWebhook({
+        event: 'auth.set_password_link',
+        email,
+        name,
+        setPasswordUrl,
+        tenantId,
+        ghlContactId,
+        ghlLocationId,
+      });
+
+      const resolved = await this.smtpResolver.resolve(tenantId);
+      if (!resolved) {
+        this.logger.warn(
+          { tenantId },
+          'inscribe: ni tenant ni fallback global tienen SMTP — email de bienvenida no enviado (el enlace ya salió por webhook)',
+        );
+        return;
+      }
 
       const branding = await resolveEmailBranding(
         this.prisma as unknown as BrandingPrisma,
