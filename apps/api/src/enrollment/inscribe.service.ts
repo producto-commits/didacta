@@ -159,25 +159,25 @@ export class InscribeService {
       userAgent: ctx.userAgent ?? undefined,
     });
 
-    if (created) {
-      // Best-effort: si falla el envío, el usuario igual queda creado y
-      // matriculado; siempre puede entrar por "¿olvidaste tu contraseña?".
-      //
-      // El idioma es el que `findOrCreateUser` acaba de escribir en la fila:
-      // `dto.locale` si el alta lo trae, y si no el default de la columna, que
-      // ES `HUB_DEFAULT_LOCALE`. `resolveRecipientLocale` deja explícito ese
-      // degradado en vez de dejarlo implícito en el schema.
-      await this.sendWelcomeEmail(
-        tenantId,
-        dto.email,
-        dto.name ?? null,
-        resolveRecipientLocale(dto.locale),
-        webBaseUrl,
-        ctx,
-        dto.ghlContactId ?? null,
-        dto.ghlLocationId ?? null,
-      );
-    }
+    // Enlace "define tu contraseña": se emite SIEMPRE por webhook (auth.set_password_link
+    // → link-didacta) para que GHL/n8n pueda entregarlo al contacto exista o no el
+    // usuario. El email de bienvenida por SMTP solo sale a usuarios NUEVOS (`created`).
+    //
+    // El idioma es el que `findOrCreateUser` acaba de escribir en la fila:
+    // `dto.locale` si el alta lo trae, y si no el default de la columna, que ES
+    // `HUB_DEFAULT_LOCALE`. `resolveRecipientLocale` deja explícito ese degradado.
+    // Best-effort: si falla, el usuario igual queda creado y matriculado.
+    await this.sendWelcomeEmail(
+      tenantId,
+      dto.email,
+      dto.name ?? null,
+      resolveRecipientLocale(dto.locale),
+      webBaseUrl,
+      ctx,
+      dto.ghlContactId ?? null,
+      dto.ghlLocationId ?? null,
+      created,
+    );
 
     // Enlace con GHL: avisa al webhook de n8n (best-effort) con el usuario y sus
     // IDs de GHL, para que n8n cierre el vínculo (p. ej. escribir el userId de
@@ -500,14 +500,21 @@ export class InscribeService {
     ctx: ClientContext,
     ghlContactId: string | null,
     ghlLocationId: string | null,
+    // Enviar el email de bienvenida por SMTP. El webhook `auth.set_password_link`
+    // se emite SIEMPRE (GHL puede necesitar el enlace aunque el usuario ya
+    // exista); el correo, en cambio, solo a usuarios NUEVOS — no queremos
+    // reescribir a alumnos que ya entran al aula en cada sync de GHL.
+    sendEmail: boolean,
   ): Promise<void> {
     try {
       // Token de "define tu contraseña" con TTL largo (compra → puede abrirlo días
       // después). Se genera ANTES del SMTP a propósito: el enlace puede entregarse
       // por GoHighLevel (webhook de abajo), así que no debe depender de que el
-      // tenant tenga SMTP configurado.
+      // tenant tenga SMTP configurado. `allowPending` para que también salga el
+      // enlace de un usuario que quedó en PENDING sin definir contraseña.
       const issued = await this.passwordReset.request({ email, resolvedTenantId: tenantId }, ctx, {
         ttlMinutes: SET_PASSWORD_TTL_MINUTES,
+        allowPending: true,
       });
       if (!issued) {
         this.logger.warn(
@@ -523,7 +530,7 @@ export class InscribeService {
       // Webhook del enlace mágico (n8n/GoHighLevel): el `event: inscribe` de arriba
       // NO lleva el `setPasswordUrl`; este `auth.set_password_link` sí, para que el
       // CRM entregue el enlace al contacto. Mismo destino `link-didacta` y mismos
-      // IDs de GHL. Best-effort: no bloquea el alta.
+      // IDs de GHL. Se emite SIEMPRE (exista o no el usuario). Best-effort.
       void this.notifyLinkWebhook({
         event: 'auth.set_password_link',
         email,
@@ -533,6 +540,9 @@ export class InscribeService {
         ghlContactId,
         ghlLocationId,
       });
+
+      // A partir de aquí, solo el email de bienvenida (SMTP) — reservado a nuevos.
+      if (!sendEmail) return;
 
       const resolved = await this.smtpResolver.resolve(tenantId);
       if (!resolved) {
