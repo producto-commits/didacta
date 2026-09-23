@@ -289,6 +289,13 @@ export const KNOWN_EVENT_TYPES = [
   // --- Fundae y evaluación ------------------------------------------------
   'fundae.group.closed',
   'assessments.attempt.submitted',
+  // --- Gamificación: retos (mod.gamification) -----------------------------
+  // El bridge solo reenvía a endpoints salientes los eventos listados aquí.
+  // Sin estas entradas, un endpoint suscrito a `gamification.challenge.*`
+  // se guarda en la BD pero jamás se dispara (el WebhooksBridge no se
+  // suscribe al evento, así que la entrega al CRM/n8n nunca ocurre).
+  'gamification.challenge.submitted',
+  'gamification.challenge.reviewed',
 ] as const;
 
 export type KnownEventType = (typeof KNOWN_EVENT_TYPES)[number];
