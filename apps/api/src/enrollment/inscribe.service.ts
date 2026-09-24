@@ -159,29 +159,16 @@ export class InscribeService {
       userAgent: ctx.userAgent ?? undefined,
     });
 
-    // Enlace "define tu contraseña": se emite SIEMPRE por webhook (auth.set_password_link
-    // → link-didacta) para que GHL/n8n pueda entregarlo al contacto exista o no el
-    // usuario. El email de bienvenida por SMTP solo sale a usuarios NUEVOS (`created`).
-    //
-    // El idioma es el que `findOrCreateUser` acaba de escribir en la fila:
-    // `dto.locale` si el alta lo trae, y si no el default de la columna, que ES
-    // `HUB_DEFAULT_LOCALE`. `resolveRecipientLocale` deja explícito ese degradado.
-    // Best-effort: si falla, el usuario igual queda creado y matriculado.
-    await this.sendWelcomeEmail(
-      tenantId,
-      dto.email,
-      dto.name ?? null,
-      resolveRecipientLocale(dto.locale),
-      webBaseUrl,
-      ctx,
-      dto.ghlContactId ?? null,
-      dto.ghlLocationId ?? null,
-      created,
-    );
+    // Enlace mágico "define tu contraseña": se genera SIEMPRE (exista o no el
+    // usuario) para que GHL/n8n pueda entregarlo al contacto. `null` si no se pudo
+    // emitir el token (tenant/usuario en un estado que no lo permite).
+    const setPasswordUrl = await this.issueSetPasswordUrl(tenantId, dto.email, webBaseUrl, ctx);
 
-    // Enlace con GHL: avisa al webhook de n8n (best-effort) con el usuario y sus
-    // IDs de GHL, para que n8n cierre el vínculo (p. ej. escribir el userId de
-    // Didacta en el contacto de GHL). No bloquea ni rompe la inscripción.
+    // UN SOLO webhook a link-didacta con TODO: IDs de GHL + cursos + el
+    // `setPasswordUrl`. Antes salían DOS eventos (`inscribe` sin enlace y
+    // `auth.set_password_link` con enlace) al mismo webhook, y el que llegara sin
+    // enlace BLANQUEABA el campo en GHL. Consolidado en un evento no hay carrera
+    // ni doble escritura. Best-effort: no bloquea ni rompe la inscripción.
     void this.notifyLinkWebhook({
       event: 'inscribe',
       userId,
@@ -190,10 +177,26 @@ export class InscribeService {
       name: dto.name ?? null,
       ghlContactId: dto.ghlContactId ?? null,
       ghlLocationId: dto.ghlLocationId ?? null,
+      setPasswordUrl,
       courseIds: dto.courseIds ?? [],
       accessGroupIds: dto.accessGroupIds ?? [],
       externalRef: dto.externalRef ?? null,
     });
+
+    // Email de bienvenida por SMTP: SOLO a usuarios NUEVOS (`created`) — no
+    // reescribimos a quien ya entra al aula en cada sync de GHL. Reusa el mismo
+    // enlace ya generado. El idioma es el que `findOrCreateUser` escribió en la
+    // fila (`dto.locale` o el default `HUB_DEFAULT_LOCALE`).
+    if (created && setPasswordUrl) {
+      await this.sendWelcomeEmail(
+        tenantId,
+        dto.email,
+        dto.name ?? null,
+        resolveRecipientLocale(dto.locale),
+        webBaseUrl,
+        setPasswordUrl,
+      );
+    }
 
     return { userId, userCreated: created, enrollments, accessGroups };
   }
@@ -491,59 +494,43 @@ export class InscribeService {
    * solo uso y hasheado en BD. Best-effort: si no hay SMTP o falla el envío, se
    * loguea y se sigue (el comprador puede usar "¿olvidaste tu contraseña?").
    */
+  /**
+   * Emite un token "define tu contraseña" (TTL largo) y devuelve la URL absoluta,
+   * o `null` si no se pudo emitir. Reusa el motor de tokens del reset: enlace de
+   * un solo uso y hasheado en BD. `allowPending` para que también salga el enlace
+   * de un usuario que quedó en PENDING sin definir contraseña.
+   */
+  private async issueSetPasswordUrl(
+    tenantId: string,
+    email: string,
+    webBaseUrl: string,
+    ctx: ClientContext,
+  ): Promise<string | null> {
+    const issued = await this.passwordReset.request({ email, resolvedTenantId: tenantId }, ctx, {
+      ttlMinutes: SET_PASSWORD_TTL_MINUTES,
+      allowPending: true,
+    });
+    if (!issued) {
+      this.logger.warn(
+        { tenantId },
+        'inscribe: no se pudo emitir el token de define-contraseña — enlace no generado',
+      );
+      return null;
+    }
+    return `${webBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(
+      issued.rawToken,
+    )}`;
+  }
+
   private async sendWelcomeEmail(
     tenantId: string,
     email: string,
     name: string | null,
     locale: string,
     webBaseUrl: string,
-    ctx: ClientContext,
-    ghlContactId: string | null,
-    ghlLocationId: string | null,
-    // Enviar el email de bienvenida por SMTP. El webhook `auth.set_password_link`
-    // se emite SIEMPRE (GHL puede necesitar el enlace aunque el usuario ya
-    // exista); el correo, en cambio, solo a usuarios NUEVOS — no queremos
-    // reescribir a alumnos que ya entran al aula en cada sync de GHL.
-    sendEmail: boolean,
+    setPasswordUrl: string,
   ): Promise<void> {
     try {
-      // Token de "define tu contraseña" con TTL largo (compra → puede abrirlo días
-      // después). Se genera ANTES del SMTP a propósito: el enlace puede entregarse
-      // por GoHighLevel (webhook de abajo), así que no debe depender de que el
-      // tenant tenga SMTP configurado. `allowPending` para que también salga el
-      // enlace de un usuario que quedó en PENDING sin definir contraseña.
-      const issued = await this.passwordReset.request({ email, resolvedTenantId: tenantId }, ctx, {
-        ttlMinutes: SET_PASSWORD_TTL_MINUTES,
-        allowPending: true,
-      });
-      if (!issued) {
-        this.logger.warn(
-          { tenantId },
-          'inscribe: no se pudo emitir el token de define-contraseña — enlace no generado',
-        );
-        return;
-      }
-      const setPasswordUrl = `${webBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(
-        issued.rawToken,
-      )}`;
-
-      // Webhook del enlace mágico (n8n/GoHighLevel): el `event: inscribe` de arriba
-      // NO lleva el `setPasswordUrl`; este `auth.set_password_link` sí, para que el
-      // CRM entregue el enlace al contacto. Mismo destino `link-didacta` y mismos
-      // IDs de GHL. Se emite SIEMPRE (exista o no el usuario). Best-effort.
-      void this.notifyLinkWebhook({
-        event: 'auth.set_password_link',
-        email,
-        name,
-        setPasswordUrl,
-        tenantId,
-        ghlContactId,
-        ghlLocationId,
-      });
-
-      // A partir de aquí, solo el email de bienvenida (SMTP) — reservado a nuevos.
-      if (!sendEmail) return;
-
       const resolved = await this.smtpResolver.resolve(tenantId);
       if (!resolved) {
         this.logger.warn(
