@@ -60,7 +60,19 @@ export class AssessmentsController {
     @Body(new ZodValidationPipe(createQuizSchema)) dto: CreateQuizDto,
   ) {
     const u = requireFormador(user);
-    return this.registry.getAssessmentsService().createQuiz(u.tenantId, u.sub, dto);
+    const quiz = await this.registry.getAssessmentsService().createQuiz(u.tenantId, u.sub, dto);
+    // Persistir el vínculo lección→quiz (content.quizId) DE UNA VEZ: es lo que
+    // leen el editor y el player del alumno. Sin esto el quiz «desaparecía» al
+    // reabrir la lección (ver CoursesService.linkLessonQuiz). Best-effort: el
+    // quiz ya se creó; si el link falla se puede rehacer guardando la lección.
+    if (dto.lessonId) {
+      try {
+        await this.registry.getCoursesService().linkLessonQuiz(u.tenantId, dto.lessonId, quiz.id);
+      } catch {
+        /* no rompemos la creación del quiz por el vínculo */
+      }
+    }
+    return quiz;
   }
 
   @Get('quizzes/:id')

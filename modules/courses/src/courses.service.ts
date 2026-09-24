@@ -740,6 +740,38 @@ export class CoursesService {
   }
 
   /**
+   * Vincula un quiz a su lección escribiendo `content.quizId` (merge; conserva el
+   * resto del content). Lo llama el flujo de creación de quiz (assessments) para
+   * que el vínculo quede persistido AL INSTANTE.
+   *
+   * Por qué existe: `mod_assessments_quiz.lesson_id` se guardaba al crear el quiz,
+   * pero tanto el editor como el player del alumno leen `lesson.content.quizId`
+   * —que solo se escribía si el formador pulsaba «Guardar cambios» en la lección
+   * DESPUÉS de crear el quiz—. Como el flujo real es crear el quiz y navegar a
+   * construirlo, ese guardado casi nunca ocurría y la lección quedaba «sin quiz»
+   * para todos. Persistir aquí el `content.quizId` cierra el hueco.
+   *
+   * No-op si la lección no existe (otro tenant / borrada) o si ya apunta a ese
+   * quiz. Idempotente.
+   */
+  async linkLessonQuiz(tenantId: string, lessonId: string, quizId: string): Promise<void> {
+    const lesson = await this.prisma.modCoursesLesson.findFirst({
+      where: { tenantId, id: lessonId, deletedAt: null },
+      select: { content: true },
+    });
+    if (!lesson) return;
+    const current =
+      lesson.content && typeof lesson.content === 'object' && !Array.isArray(lesson.content)
+        ? (lesson.content as Record<string, unknown>)
+        : {};
+    if (current['quizId'] === quizId) return;
+    await this.prisma.modCoursesLesson.update({
+      where: { id: lessonId },
+      data: { content: sanitizeLessonContent({ ...current, quizId }) as never },
+    });
+  }
+
+  /**
    * Soft-delete de una lección. No borra el registro: solo marca `deletedAt`,
    * para preservar progreso histórico (`mod_learning_progress`) y permitir
    * auditoría posterior. Al desaparecer del listado, deja de mostrarse a alumnos.
