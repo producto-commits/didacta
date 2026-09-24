@@ -9,6 +9,12 @@ export const lessonTypeSchema = z.enum(['VIDEO', 'HTML', 'PDF', 'TEXT', 'QUIZ', 
 
 export const courseStatusSchema = z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 
+// La miniatura puede ser la ruta ESTABLE del storage (relativa, subida desde el
+// PC: `/api/v1/storage/file/…`) o una URL absoluta externa; por eso NO se valida
+// con `.url()`, que rechaza la ruta relativa y hacía fallar «Guardar cambios» con
+// «Invalid url» al subir la imagen destacada. Mismo criterio que certificados.
+export const thumbnailRefSchema = z.string().trim().min(1).max(2048);
+
 export const slugSchema = z
   .string()
   .min(1)
@@ -19,7 +25,7 @@ export const createCourseSchema = z.object({
   slug: slugSchema,
   title: z.string().min(1).max(160),
   description: z.string().max(2000).optional(),
-  thumbnailUrl: z.string().url().optional(),
+  thumbnailUrl: thumbnailRefSchema.optional(),
   featuredVideoUrl: z.string().url().optional(),
   language: z.string().min(2).max(10).default('es-ES'),
   estimatedMinutes: z.number().int().positive().optional(),
@@ -32,7 +38,7 @@ export const updateCourseSchema = z.object({
   title: z.string().min(1).max(160).optional(),
   // null = limpiar el campo. Solo afecta a campos opcionales.
   description: z.string().max(2000).nullable().optional(),
-  thumbnailUrl: z.string().url().nullable().optional(),
+  thumbnailUrl: thumbnailRefSchema.nullable().optional(),
   featuredVideoUrl: z.string().url().nullable().optional(),
   estimatedMinutes: z.number().int().positive().nullable().optional(),
   category: z.string().max(60).nullable().optional(),
