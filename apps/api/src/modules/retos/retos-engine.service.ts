@@ -392,14 +392,31 @@ export class RetosEngineService {
       data: { awardedAt: new Date() },
     });
 
-    // 3) Evento para quien quiera reaccionar (notificaciones, Dana, etc.).
+    // Curso al que pertenece el reto (vía su lección) — para el webhook a n8n/GHL,
+    // que necesita el NOMBRE del curso además del reto. Best-effort: si el reto no
+    // tiene lección o no se resuelve, van en null.
+    let courseId: string | null = null;
+    let courseName: string | null = null;
+    if (reto.lessonId) {
+      const lesson = await this.prisma.modCoursesLesson.findFirst({
+        where: { id: reto.lessonId, tenantId },
+        select: { module: { select: { courseId: true, course: { select: { title: true } } } } },
+      });
+      courseId = lesson?.module?.courseId ?? null;
+      courseName = lesson?.module?.course?.title ?? null;
+    }
+
+    // 3) Evento para quien quiera reaccionar (notificaciones, Dana, webhooks…).
     await this.publishSafe(tenantId, userId, 'retos.reto.completed', {
       retoId,
       retoKey: reto.key,
+      retoTitle: reto.title,
       userId,
       points: reto.points,
       badgeKey: reto.badgeKey,
       lessonId: reto.lessonId,
+      courseId,
+      courseName,
     });
 
     this.logger.log(`Reto ${reto.key} completado por ${userId} (+${reto.points}).`);

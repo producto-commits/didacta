@@ -435,6 +435,8 @@ export class WebhooksService {
           name: true,
           externalSource: true,
           externalId: true,
+          ghlContactId: true,
+          ghlLocationId: true,
         },
       });
       // Fila de otro tenant: no se filtra fuera del tenant que la pidio.
@@ -445,6 +447,8 @@ export class WebhooksService {
         name: user.name ?? null,
         externalSource: user.externalSource ?? null,
         externalId: user.externalId ?? null,
+        ghlContactId: user.ghlContactId ?? null,
+        ghlLocationId: user.ghlLocationId ?? null,
       };
     } catch (err) {
       this.logger?.warn(

@@ -653,9 +653,16 @@ export class LearningService {
           progressPercent: totals.progressPercent,
         },
       });
+      // Nombre del curso para los consumidores del evento (webhook a n8n/GHL):
+      // el payload llevaba solo el courseId y el integrador necesita el título.
+      const course = await this.prisma.modCoursesCourse.findFirst({
+        where: { id: enrollment.courseId, tenantId },
+        select: { title: true },
+      });
       await this.publish(tenantId, userId, 'learning.course.completed', {
         enrollmentId: enrollment.id,
         courseId: enrollment.courseId,
+        courseName: course?.title ?? null,
         userId,
       });
     }

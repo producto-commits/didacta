@@ -296,6 +296,8 @@ export const KNOWN_EVENT_TYPES = [
   // suscribe al evento, así que la entrega al CRM/n8n nunca ocurre).
   'gamification.challenge.submitted',
   'gamification.challenge.reviewed',
+  // --- Retos: motor de completitud (mod.retos) ----------------------------
+  'retos.reto.completed',
 ] as const;
 
 export type KnownEventType = (typeof KNOWN_EVENT_TYPES)[number];
@@ -320,6 +322,14 @@ export interface WebhookLearner {
   name: string | null;
   externalSource: string | null;
   externalId: string | null;
+  /**
+   * IDs de GoHighLevel del contacto (columnas dedicadas del usuario, distintas
+   * de externalSource/externalId). Van en todo webhook para que n8n/GHL pueda
+   * vincular la entrega al contacto sin un lookup extra. `null` si el usuario no
+   * se creó vía el flujo de GHL (`/inscribe`).
+   */
+  ghlContactId: string | null;
+  ghlLocationId: string | null;
 }
 
 /**
