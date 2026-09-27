@@ -130,12 +130,12 @@ export default function UsuariosPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-end justify-between gap-4">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight">{t('list.title')}</h1>
           <p className="mt-1 text-text-muted">{t('list.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="secondary">
             <Link href="/admin/usuarios/importar">{t('list.importCsv')}</Link>
           </Button>

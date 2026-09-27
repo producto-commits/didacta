@@ -216,7 +216,7 @@ export default function BrandingPage() {
     <div className="flex flex-col gap-6">
       <style dangerouslySetInnerHTML={{ __html: previewStyle }} />
 
-      <header className="flex items-end justify-between gap-4">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight">{t('branding.title')}</h1>
           <p className="mt-1 text-text-muted">
