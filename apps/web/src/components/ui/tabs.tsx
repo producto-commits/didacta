@@ -85,7 +85,11 @@ export function TabsList({ className, children, ...props }: TabsListProps): Reac
     <div
       role="tablist"
       className={cn(
-        'inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1',
+        // `max-w-full overflow-x-auto`: en móvil una fila con muchas pestañas
+        // (p. ej. perfil: Datos/Notificaciones/Suscripción/Seguridad) desbordaba
+        // el viewport; ahora la propia lista scrollea en horizontal en vez de
+        // empujar la página. Los triggers llevan `shrink-0 whitespace-nowrap`.
+        'inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1',
         className,
       )}
       {...props}
@@ -144,7 +148,7 @@ export function TabsTrigger({
       }}
       data-tab-value={value}
       className={cn(
-        'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+        'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
         selected ? 'bg-brand-500 text-text-on-brand shadow-sm' : 'text-text-muted hover:text-text',
         className,

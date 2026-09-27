@@ -380,6 +380,17 @@ function Shell({
   const pendingCounts = useAdminPendingCounts(isAdminArea);
   const groups = isAdminArea ? applyAdminBadges(filteredGroups, pendingCounts) : roleFilteredGroups;
 
+  // Hrefs de navegación realmente disponibles (para el slot central de la
+  // tab-bar móvil). Solo se calcula cuando `activeModules` ya resolvió: mientras
+  // es null no filtramos por módulo, así que ofrecer "Retos" ahí podría mostrarlo
+  // a un tenant que lo tiene apagado. Con `undefined` la tab-bar usa su fallback.
+  const availableHrefs =
+    activeModules === null
+      ? undefined
+      : new Set(
+          groups.flatMap((g) => g.items.map((i) => i.href).filter((h): h is string => Boolean(h))),
+        );
+
   // Modo enfoque en la lección (solo estudiante): dentro del reproductor de una
   // lección concreta (/cursos/<slug>) el sidebar se pliega al rail de iconos
   // para que el contenido sea el protagonista. No persiste la preferencia; el
@@ -527,8 +538,15 @@ function Shell({
             </main>
           </div>
 
-          {/* Barra inferior de pestañas — solo móvil (<lg). */}
-          <MobileTabBar pathname={pathname ?? null} onOpenMenu={() => setMobileNavOpen(true)} />
+          {/* Barra inferior de pestañas — solo móvil (<lg). El slot central se
+              resuelve de los hrefs realmente disponibles (groups ya viene
+              filtrado por módulos activos y rol): así muestra "Retos" si está
+              activo en vez de "Miembros" cuando ese módulo está apagado. */}
+          <MobileTabBar
+            pathname={pathname ?? null}
+            onOpenMenu={() => setMobileNavOpen(true)}
+            availableHrefs={availableHrefs}
+          />
         </div>
         {/* Botón flotante: asistente de retos (Hablar con Dana / Reportar un reto).
             Reemplaza al chat flotante de Mensajes a petición de Dropi; Mensajes

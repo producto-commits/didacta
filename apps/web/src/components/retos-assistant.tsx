@@ -108,7 +108,9 @@ export function RetosAssistant() {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={t('reto.assistantOpen')}
-        className="fixed bottom-5 right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-brand-600 text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+        // En móvil sube por encima de la tab-bar inferior (y respeta el notch)
+        // para no quedar sobre la pestaña "Menú"; en lg no hay tab-bar → bottom-5.
+        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-brand-600 text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 lg:bottom-5"
       >
         {open ? <CloseIcon /> : <ChatIcon />}
       </button>
