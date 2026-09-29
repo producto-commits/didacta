@@ -32,6 +32,7 @@ import { CurrentUser, MfaExempt } from './decorators';
 import { isValidDocumentId, normalizeDocumentId } from './document-id';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PasswordService } from './password.service';
+import { computarPerfil, perfilRespuestasSchema, type PerfilRespuestas } from './perfilamiento';
 import type { SessionClaims } from './token.service';
 import { ZodValidationPipe } from './zod-validation.pipe';
 
@@ -315,6 +316,84 @@ export class MeController {
       userAgent: ctx.userAgent ?? undefined,
     });
     return { ok: true, onboardingCompletedAt: updated.onboardingCompletedAt!.toISOString() };
+  }
+
+  // ── Perfilamiento (diagnóstico inicial) ──────────────────────────────────
+  // Espeja el onboarding: el shell gatea al alumno a /perfilamiento mientras
+  // `perfilCompletadoAt` sea null. Ver docs/perfilamiento-usuario-plan.md.
+
+  @Get('perfilamiento/status')
+  @MfaExempt()
+  @ApiOperation({ summary: 'Estado del perfilamiento (completado + segmento calculado).' })
+  async perfilamientoStatus(@CurrentUser() user: SessionClaims | undefined) {
+    if (!user) throw new UnauthorizedException();
+    const dbUser = await this.prisma.user.findUnique({ where: { id: user.sub } });
+    if (!dbUser) throw new UnauthorizedException();
+    return {
+      completed: dbUser.perfilCompletadoAt !== null,
+      completedAt: dbUser.perfilCompletadoAt?.toISOString() ?? null,
+      segmento: dbUser.perfilSegmento ?? null,
+    };
+  }
+
+  @Post('perfilamiento/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Guarda las 5 respuestas del perfilamiento, calcula el segmento y lo persiste. Idempotente.',
+  })
+  async perfilamientoComplete(
+    @Req() req: FastifyRequest,
+    @CurrentUser() user: SessionClaims | undefined,
+    @Body(new ZodValidationPipe(perfilRespuestasSchema)) respuestas: PerfilRespuestas,
+  ) {
+    if (!user) throw new UnauthorizedException();
+    const dbUser = await this.prisma.user.findUnique({ where: { id: user.sub } });
+    if (!dbUser) throw new UnauthorizedException();
+
+    // Idempotente: si ya se perfiló, no re-escribe ni re-audita.
+    if (dbUser.perfilCompletadoAt) {
+      return {
+        ok: true,
+        alreadyCompleted: true,
+        segmento: dbUser.perfilSegmento,
+        perfilCompletadoAt: dbUser.perfilCompletadoAt.toISOString(),
+      };
+    }
+
+    const perfil = computarPerfil(respuestas);
+    const updated = await this.prisma.user.update({
+      where: { id: user.sub },
+      data: {
+        perfilCompletadoAt: new Date(),
+        perfilSegmento: perfil.segmento,
+        perfilObjetivo: perfil.objetivo,
+        perfilObstaculo: perfil.obstaculo,
+        perfilRespuestas: respuestas,
+      },
+    });
+    const ctx = extractClientContext(req);
+    await this.auditLog.record({
+      tenantId: user.tenantId,
+      actorId: user.sub,
+      action: 'user.perfilamiento.completed',
+      resourceType: 'user',
+      resourceId: user.sub,
+      metadata: {
+        segmento: perfil.segmento,
+        objetivo: perfil.objetivo,
+        obstaculo: perfil.obstaculo,
+      },
+      ip: ctx.ip ?? undefined,
+      userAgent: ctx.userAgent ?? undefined,
+    });
+    // NOTA (pendiente, ver plan §7): el ruteo de retos por segmento y el webhook
+    // a GHL/WhatsApp (`user.perfilamiento.completed`) se iteran en una v2.
+    return {
+      ok: true,
+      segmento: updated.perfilSegmento,
+      perfilCompletadoAt: updated.perfilCompletadoAt!.toISOString(),
+    };
   }
 
   private missingOnboardingFields(dbUser: {

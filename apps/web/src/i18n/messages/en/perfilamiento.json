@@ -1,0 +1,48 @@
+{
+  "title": "Tell us about you",
+  "back": "Back",
+  "saving": "Saving…",
+  "error": "We couldn't save your answers. Please try again.",
+  "preguntas": {
+    "experiencia": { "titulo": "Have you ever sold anything online?" },
+    "modelo": { "titulo": "Do you know how cash-on-delivery dropshipping works?" },
+    "ordenes": { "titulo": "How many orders have you generated in Dropi so far?" },
+    "obstaculo": { "titulo": "What holds you back the most from starting to sell?" },
+    "objetivo": { "titulo": "What do you want to achieve in the next 30 days?" }
+  },
+  "opciones": {
+    "experiencia": {
+      "nunca": "No, I've never sold anything online",
+      "intente_sin_resultado": "I tried but it didn't work out",
+      "vendi_redes": "Yes, I sold on social media or WhatsApp groups",
+      "vendi_dropi": "I've sold on Dropi before"
+    },
+    "modelo": {
+      "no_se": "No, I don't know what that is",
+      "escuche_algo": "I've heard about it but don't really get it",
+      "entiendo_no_practique": "I understand it but never put it into practice",
+      "entiendo_practique": "Yes, I understand it and I've already done it"
+    },
+    "ordenes": {
+      "ninguna_reciente": "None — I just signed up",
+      "ninguna_antiguo": "None — I signed up a while ago but never got going",
+      "1_9": "Between 1 and 9 orders",
+      "10_100": "Between 10 and 100 orders",
+      "mas_100": "More than 100 orders"
+    },
+    "obstaculo": {
+      "producto": "I don't know what product to sell",
+      "publicar_clientes": "I don't know how to post or get customers",
+      "no_entiendo_dropi": "I don't really understand how Dropi works",
+      "tiempo": "I don't have enough time",
+      "malas_experiencias": "I had bad experiences before (issues, returns)",
+      "ninguno_listo": "None — I'm ready to start"
+    },
+    "objetivo": {
+      "entender": "Understand how this works before starting",
+      "primera_venta": "Make my first sale",
+      "volver_vender": "Sell again — I've done it before",
+      "aumentar_ventas": "Increase my current sales"
+    }
+  }
+}

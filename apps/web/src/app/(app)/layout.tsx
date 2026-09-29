@@ -126,6 +126,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       return false;
     };
 
+    // Perfilamiento (diagnóstico inicial): solo ALUMNOS, una sola vez, DESPUÉS
+    // del onboarding. Al ser por flag `perfilCompletadoAt`, la primera vez que
+    // entra un inactivo ya existente también se perfila. Admin/formador exentos.
+    // `undefined` (sesión previa al flag) no gatea hasta el próximo login.
+    const esAlumno = !current.user.roles.some((r) =>
+      ['super_admin', 'tenant_admin', 'formador'].includes(r),
+    );
+    const irAPerfilamientoSiHaceFalta = () => {
+      if (esAlumno && current.user.perfilCompletadoAt === null) {
+        rememberIntendedPath(window.location.pathname + window.location.search);
+        router.replace('/perfilamiento');
+        return true;
+      }
+      return false;
+    };
+
     const administra = current.user.roles.some((r) => ['super_admin', 'tenant_admin'].includes(r));
     if (administra && window.sessionStorage.getItem(ACADEMIA_LISTA_KEY) !== '1') {
       /**
@@ -154,6 +170,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }
 
     if (irAPerfilSiHaceFalta()) return;
+    if (irAPerfilamientoSiHaceFalta()) return;
     setSession(current);
   }, [router, pathname]);
 

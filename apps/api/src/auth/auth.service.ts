@@ -99,6 +99,12 @@ export interface AuthResult {
      * /onboarding antes de dejar entrar.
      */
     onboardingCompletedAt: string | null;
+    /**
+     * Timestamp ISO del perfilamiento (diagnóstico inicial), o null si aún no
+     * lo hizo. El shell lo usa para forzar /perfilamiento (solo alumnos) tras
+     * el onboarding. Ver docs/perfilamiento-usuario-plan.md.
+     */
+    perfilCompletadoAt: string | null;
   };
 }
 
@@ -271,6 +277,7 @@ export class AuthService {
         mfaEnabled: user.mfaEnabled,
         mustChangePassword: user.mustChangePassword,
         onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
+        perfilCompletadoAt: user.perfilCompletadoAt?.toISOString() ?? null,
       },
     };
   }
@@ -427,6 +434,7 @@ export class AuthService {
         mfaEnabled: user.mfaEnabled,
         mustChangePassword: user.mustChangePassword,
         onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
+        perfilCompletadoAt: user.perfilCompletadoAt?.toISOString() ?? null,
       },
     };
   }
@@ -550,6 +558,7 @@ export class AuthService {
             mfaEnabled: user.mfaEnabled,
             mustChangePassword: user.mustChangePassword,
             onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
+            perfilCompletadoAt: user.perfilCompletadoAt?.toISOString() ?? null,
           },
         };
       },

@@ -35,6 +35,13 @@ export interface StoredSession {
      * ese caso NO se gatea (se asume completado) hasta el próximo login.
      */
     onboardingCompletedAt?: string | null;
+    /**
+     * ISO del perfilamiento (diagnóstico inicial), o `null` si aún no lo hizo.
+     * El shell fuerza `/perfilamiento` (solo alumnos) tras el onboarding mientras
+     * sea `null`. `undefined` (sesión previa al flag) = no se gatea hasta el
+     * próximo login. Ver docs/perfilamiento-usuario-plan.md.
+     */
+    perfilCompletadoAt?: string | null;
   };
   mfaRequired: boolean;
   /**

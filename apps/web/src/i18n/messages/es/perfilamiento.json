@@ -1,0 +1,48 @@
+{
+  "title": "Cuéntanos de ti",
+  "back": "Volver",
+  "saving": "Guardando…",
+  "error": "No pudimos guardar tus respuestas. Intenta de nuevo.",
+  "preguntas": {
+    "experiencia": { "titulo": "¿Alguna vez vendiste algo por internet?" },
+    "modelo": { "titulo": "¿Sabes cómo funciona el dropshipping con pago contra entrega?" },
+    "ordenes": { "titulo": "¿Cuántas órdenes generaste en Dropi hasta ahora?" },
+    "obstaculo": { "titulo": "¿Qué es lo que más te frena para empezar a vender?" },
+    "objetivo": { "titulo": "¿Qué quieres lograr en los próximos 30 días?" }
+  },
+  "opciones": {
+    "experiencia": {
+      "nunca": "No, nunca vendí nada online",
+      "intente_sin_resultado": "Intenté pero no me dio resultado",
+      "vendi_redes": "Sí, vendí en redes sociales o grupos de WhatsApp",
+      "vendi_dropi": "Ya vendí en Dropi antes"
+    },
+    "modelo": {
+      "no_se": "No, no sé qué es eso",
+      "escuche_algo": "Escuché algo pero no lo entiendo bien",
+      "entiendo_no_practique": "Lo entiendo pero nunca lo puse en práctica",
+      "entiendo_practique": "Sí, lo entiendo y ya lo practiqué"
+    },
+    "ordenes": {
+      "ninguna_reciente": "Ninguna — recién me registro",
+      "ninguna_antiguo": "Ninguna — me registré hace un tiempo pero no arranqué",
+      "1_9": "Entre 1 y 9 órdenes",
+      "10_100": "Entre 10 y 100 órdenes",
+      "mas_100": "Más de 100 órdenes"
+    },
+    "obstaculo": {
+      "producto": "No sé qué producto vender",
+      "publicar_clientes": "No sé cómo publicar o conseguir clientes",
+      "no_entiendo_dropi": "No entiendo bien cómo funciona Dropi",
+      "tiempo": "No tengo tiempo suficiente",
+      "malas_experiencias": "Tuve malas experiencias antes (novedades, devoluciones)",
+      "ninguno_listo": "Ninguna — estoy listo para arrancar"
+    },
+    "objetivo": {
+      "entender": "Entender cómo funciona esto antes de arrancar",
+      "primera_venta": "Hacer mi primera venta",
+      "volver_vender": "Volver a vender — ya lo hice antes",
+      "aumentar_ventas": "Aumentar mis ventas actuales"
+    }
+  }
+}

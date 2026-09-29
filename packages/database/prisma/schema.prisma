@@ -256,6 +256,17 @@ model User {
   /// dejarlo entrar. Backfill de usuarios previos = created_at (no se les
   /// interrumpe). Solo `null` → fecha; nunca vuelve a null.
   onboardingCompletedAt DateTime?  @map("onboarding_completed_at")
+  /// Perfilamiento (diagnóstico inicial). Se captura en /perfilamiento tras el
+  /// onboarding, una sola vez. `perfilCompletadoAt` null = pendiente → el shell
+  /// gatea al alumno a /perfilamiento. `perfilSegmento`/`perfilObjetivo`/
+  /// `perfilObstaculo` son enums snake_case calculados/elegidos (ver
+  /// docs/perfilamiento-usuario-plan.md); `perfilRespuestas` guarda las 5
+  /// respuestas crudas para auditoría y re-derivar si cambia el scoring.
+  perfilCompletadoAt    DateTime?  @map("perfil_completado_at")
+  perfilSegmento        String?    @map("perfil_segmento") @db.VarChar(40)
+  perfilObjetivo        String?    @map("perfil_objetivo") @db.VarChar(40)
+  perfilObstaculo       String?    @map("perfil_obstaculo") @db.VarChar(40)
+  perfilRespuestas      Json?      @map("perfil_respuestas")
   /// DEPRECADO (D13): la fuente de verdad pasa a mod_member_registration_profile;
   /// se dual-escribe durante la transición y se elimina en D13 F4.
   /// ID numérico de Telegram capturado en la inscripción de miembros (gate
