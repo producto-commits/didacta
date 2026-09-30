@@ -5,12 +5,14 @@
 
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { GhlModule } from '../integrations/ghl/ghl.module';
 import { ModulesModule } from '../modules/modules.module';
 import { SsoOidcModule } from '../sso/oidc/oidc.module';
 import { SsoSamlModule } from '../sso/saml/saml.module';
 import { SsoWpModule } from '../sso/wp/wp-sso.module';
 import { AdminAcademyController } from './admin-academy.controller';
 import { AdminApiKeysController } from './admin-api-keys.controller';
+import { AdminGhlController } from './admin-ghl.controller';
 import { AdminModulesController } from './admin-modules.controller';
 import { AdminProvisioningController } from './admin-provisioning.controller';
 import { AdminSmtpController } from './admin-smtp.controller';
@@ -49,7 +51,7 @@ import { SupportAccessService } from './support-access.service';
  * Importa ModulesModule para reusar TenantModulesService (HU-TA-002).
  */
 @Module({
-  imports: [AuthModule, ModulesModule, SsoOidcModule, SsoSamlModule, SsoWpModule],
+  imports: [AuthModule, ModulesModule, GhlModule, SsoOidcModule, SsoSamlModule, SsoWpModule],
   controllers: [
     InvitationsController,
     AdminUsersController,
@@ -77,6 +79,10 @@ import { SupportAccessService } from './support-access.service';
     // patrón que AdminSmtpController. Comparte credenciales entre mod.billing
     // y mod.subscriptions (TenantStripeResolverService).
     AdminStripeController,
+    // Conexión directa a GoHighLevel (Administración → Conexión GHL) —
+    // GET/PUT/POST test, mismo patrón. Guarda el token con el que Academy llama
+    // a GHL sin pasar por n8n (etiquetas de retos, etc.).
+    AdminGhlController,
     // Cuarto piloto License SDK — gate feat:custom_domains end-to-end.
     CustomDomainsController,
     // Séptimo piloto License SDK — gestión del token SCIM por tenant.

@@ -373,6 +373,7 @@ export function buildAdminGroups({ isSuperAdmin }: { isSuperAdmin: boolean }): S
     items: [
       { href: '/admin/api-keys', label: 'Claves API', icon: 'code' },
       { href: '/admin/webhooks', label: 'Webhooks', icon: 'link' },
+      { href: '/admin/conexion-ghl', label: 'Conexión GHL', icon: 'package' },
       { href: '/admin/rate-limit', label: 'Límites de API', icon: 'trending' },
       { href: '/admin/ia/providers', label: 'Proveedores de IA', icon: 'sparkles' },
     ],

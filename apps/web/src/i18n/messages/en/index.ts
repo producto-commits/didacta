@@ -15,6 +15,7 @@
 
 import adminApi from './adminApi.json';
 import adminEngagement from './adminEngagement.json';
+import adminGhl from './adminGhl.json';
 import adminFundae from './adminFundae.json';
 import adminMarca from './adminMarca.json';
 import adminMonetizacion from './adminMonetizacion.json';
@@ -64,6 +65,7 @@ import shell from './shell.json';
 export default {
   adminApi,
   adminEngagement,
+  adminGhl,
   adminFundae,
   adminMarca,
   adminMonetizacion,
