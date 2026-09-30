@@ -480,6 +480,7 @@ export function LessonPlayer({
                   lessonTitle={lesson.title}
                   onRefresh={refreshReto}
                   onSelectLesson={onSelectLesson}
+                  isYouTube={isYouTubeVideo}
                   layout={retoHost && xl ? 'column' : 'wide'}
                 />
               );

@@ -27,6 +27,13 @@ interface Props {
   /** Navegar a otra lección del curso (CTA "Ir al siguiente reto"). */
   onSelectLesson?: (lessonId: string) => void;
   /**
+   * El vídeo de la lección es de YouTube. YouTube no es medible de forma fiable
+   * (su API de progreso no siempre llega), así que el paso "Ver el vídeo" puede
+   * quedarse pendiente aunque el alumno lo vea entero: en ese caso mostramos un
+   * botón manual "Marcar como visto". En vídeos subidos (medibles) no aplica.
+   */
+  isYouTube?: boolean;
+  /**
    * `column`: tercera columna de la página del curso (Contenido | Video | Reto),
    * todo apilado con el progreso arriba. `wide`: sección a todo lo ancho bajo
    * el video (pantallas sin sitio para la tercera columna).
@@ -50,6 +57,7 @@ export function RetoPanel({
   lessonTitle,
   onRefresh,
   onSelectLesson,
+  isYouTube = false,
   layout = 'wide',
 }: Props) {
   const column = layout === 'column';
@@ -64,6 +72,22 @@ export function RetoPanel({
     setError(null);
     try {
       await retosApi.actionDone(reto.id, actionKey, body);
+      await onRefresh();
+    } catch (e) {
+      setError(e instanceof ApiHttpError ? apiErrorMessage(e, tErrors) : String(e));
+    } finally {
+      setPendingKey(null);
+    }
+  }
+
+  // Marcado MANUAL del paso de vídeo — solo para YouTube (ver prop `isYouTube`).
+  // Llama al mismo endpoint que el reporte automático (video-complete), así que
+  // el motor lo trata igual; es idempotente.
+  async function markVideoWatched() {
+    setPendingKey('video');
+    setError(null);
+    try {
+      await retosApi.videoComplete(reto.id);
       await onRefresh();
     } catch (e) {
       setError(e instanceof ApiHttpError ? apiErrorMessage(e, tErrors) : String(e));
@@ -113,7 +137,15 @@ export function RetoPanel({
       {column ? (
         // En columna el progreso va arriba, antes de la evaluación y las acciones.
         <div className="mb-6">
-          <RetoProgressWidget data={data} t={t} onSelectLesson={onSelectLesson} flat />
+          <RetoProgressWidget
+            data={data}
+            t={t}
+            onSelectLesson={onSelectLesson}
+            isYouTube={isYouTube}
+            onMarkVideoWatched={markVideoWatched}
+            marking={pendingKey === 'video'}
+            flat
+          />
         </div>
       ) : null}
 
@@ -242,7 +274,16 @@ export function RetoPanel({
         </div>
 
         {/* Progreso del reto y del módulo (widget del spec), a la derecha. */}
-        {!column ? <RetoProgressWidget data={data} t={t} onSelectLesson={onSelectLesson} /> : null}
+        {!column ? (
+          <RetoProgressWidget
+            data={data}
+            t={t}
+            onSelectLesson={onSelectLesson}
+            isYouTube={isYouTube}
+            onMarkVideoWatched={markVideoWatched}
+            marking={pendingKey === 'video'}
+          />
+        ) : null}
       </div>
     </section>
   );
@@ -252,17 +293,29 @@ function RetoProgressWidget({
   data,
   t,
   onSelectLesson,
+  isYouTube = false,
+  onMarkVideoWatched,
+  marking = false,
   flat = false,
 }: {
   data: LessonReto;
   t: ReturnType<typeof useTranslations<'playersContenido'>>;
   onSelectLesson?: (lessonId: string) => void;
+  /** El vídeo es de YouTube → ofrecer marcado manual del paso de vídeo. */
+  isYouTube?: boolean;
+  onMarkVideoWatched?: () => void;
+  marking?: boolean;
   /** Sin tarjeta propia (ya está dentro de la tarjeta de la columna). */
   flat?: boolean;
 }) {
   const { reto, progress } = data;
   const stepLabel = (s: StepProgress) =>
     s.type === 'VIDEO' ? t('reto.stepVideo') : s.type === 'QUIZ' ? t('reto.stepQuiz') : s.title;
+  // YouTube no se puede medir de forma fiable: si el paso de vídeo sigue
+  // pendiente, dejamos que el alumno lo marque a mano. En vídeos subidos
+  // (medibles) el paso se marca solo y este botón no aparece.
+  const videoStep = progress.steps.find((s) => s.type === 'VIDEO');
+  const showMarkWatched = Boolean(isYouTube && onMarkVideoWatched && videoStep && !videoStep.done);
   return (
     // El título del reto ya está en la cabecera de la sección: aquí solo el progreso.
     <aside
@@ -302,6 +355,22 @@ function RetoProgressWidget({
           </li>
         ))}
       </ul>
+
+      {showMarkWatched ? (
+        <div className="mt-3 rounded-lg border border-dashed border-border bg-surface-2 p-3">
+          <p className="text-xs text-text-muted">{t('reto.youtubeWatchHint')}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="mt-2"
+            disabled={marking}
+            onClick={onMarkVideoWatched}
+          >
+            {marking ? t('reto.markingWatched') : t('reto.markWatched')}
+          </Button>
+        </div>
+      ) : null}
 
       <Meter label={t('reto.retoPercent')} percent={progress.percent} className="mt-4" />
       <Meter label={t('reto.modulePercent')} percent={data.modulePercent} className="mt-3" />
