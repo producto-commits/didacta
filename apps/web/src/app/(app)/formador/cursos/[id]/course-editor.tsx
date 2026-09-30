@@ -497,6 +497,7 @@ function MetadataEditor({
   const [thumbnailUrl, setThumbnailUrl] = useState(course.thumbnailUrl ?? '');
   const [featuredVideoUrl, setFeaturedVideoUrl] = useState(course.featuredVideoUrl ?? '');
   const [externalPurchaseUrl, setExternalPurchaseUrl] = useState(course.externalPurchaseUrl ?? '');
+  const [ghlTag, setGhlTag] = useState(course.ghlTag ?? '');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [optimizeNote, setOptimizeNote] = useState<string | null>(null);
@@ -578,6 +579,7 @@ function MetadataEditor({
         thumbnailUrl: thumbnailUrl.trim() ? thumbnailUrl.trim() : null,
         featuredVideoUrl: featuredVideoUrl.trim() ? featuredVideoUrl.trim() : null,
         externalPurchaseUrl: externalPurchaseUrl.trim() ? externalPurchaseUrl.trim() : null,
+        ghlTag: ghlTag.trim() ? ghlTag.trim() : null,
       });
       await onSaved();
     } catch (e) {
@@ -769,6 +771,19 @@ function MetadataEditor({
               />
               <p className="text-xs text-text-subtle">
                 {t.rich('externalPurchaseHelp', { code: (chunks) => <code>{chunks}</code> })}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="meta-ghl-tag">{t('ghlTagLabel')}</Label>
+              <Input
+                id="meta-ghl-tag"
+                value={ghlTag}
+                onChange={(e) => setGhlTag(e.target.value)}
+                maxLength={60}
+                placeholder={t('ghlTagPlaceholder')}
+              />
+              <p className="text-xs text-text-subtle">
+                {t.rich('ghlTagHelp', { code: (chunks) => <code>{chunks}</code> })}
               </p>
             </div>
             <div className="space-y-1.5">

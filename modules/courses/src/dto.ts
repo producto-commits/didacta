@@ -30,6 +30,8 @@ export const createCourseSchema = z.object({
   language: z.string().min(2).max(10).default('es-ES'),
   estimatedMinutes: z.number().int().positive().optional(),
   category: z.string().max(60).optional(),
+  /// Código corto para la etiqueta de GHL (ej. "24h-arg"). Ver RetosGhlBridge.
+  ghlTag: z.string().trim().max(60).optional(),
 });
 export type CreateCourseDto = z.infer<typeof createCourseSchema>;
 
@@ -42,6 +44,8 @@ export const updateCourseSchema = z.object({
   featuredVideoUrl: z.string().url().nullable().optional(),
   estimatedMinutes: z.number().int().positive().nullable().optional(),
   category: z.string().max(60).nullable().optional(),
+  /// Código corto para la etiqueta de GHL (ej. "24h-arg"). null = limpiar.
+  ghlTag: z.string().trim().max(60).nullable().optional(),
   status: courseStatusSchema.optional(),
   /// URL de la página de ventas externa donde se compra el curso. null = limpiar.
   externalPurchaseUrl: z.string().url().max(2048).nullable().optional(),

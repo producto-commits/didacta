@@ -47,6 +47,7 @@ export class CoursesService {
         language: dto.language,
         estimatedMinutes: dto.estimatedMinutes ?? null,
         category: dto.category ?? null,
+        ghlTag: dto.ghlTag ? dto.ghlTag : null,
         createdById: actorId,
       },
     });
@@ -91,6 +92,7 @@ export class CoursesService {
         ...(dto.featuredVideoUrl !== undefined ? { featuredVideoUrl: dto.featuredVideoUrl } : {}),
         ...(dto.estimatedMinutes !== undefined ? { estimatedMinutes: dto.estimatedMinutes } : {}),
         ...(dto.category !== undefined ? { category: dto.category } : {}),
+        ...(dto.ghlTag !== undefined ? { ghlTag: dto.ghlTag ? dto.ghlTag : null } : {}),
         ...(dto.externalPurchaseUrl !== undefined
           ? { externalPurchaseUrl: dto.externalPurchaseUrl }
           : {}),

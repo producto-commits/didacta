@@ -98,14 +98,33 @@ export class RetosGhlBridge implements OnModuleInit {
       return;
     }
 
-    // 4) Etiqueta = el key del reto (estable, único por tenant).
-    const tag = data.retoKey.trim();
-    if (!tag) return;
+    // 4) Etiqueta = `<códigoCurso>-<retoKey>` si el curso tiene código GHL; si
+    //    no, solo el key del reto. El código lo fija el formador en el editor
+    //    del curso (columna ghl_tag), para que la etiqueta sea corta y diga de
+    //    qué curso es (ej. `24h-arg-bienvenido-1`).
+    const retoKey = data.retoKey.trim();
+    if (!retoKey) return;
+    const courseCode = await this.resolveCourseCode(tenantId, data.courseId);
+    const tag = courseCode ? `${courseCode}-${retoKey}` : retoKey;
 
     await this.ghl.addContactTags(conn.token, user.ghlContactId, [tag]);
     this.logger.log(
       `GHL: etiqueta "${tag}" aplicada al contacto ${user.ghlContactId} en location ${conn.locationId}.`,
     );
+  }
+
+  /** Código GHL del curso (columna ghl_tag), o null si no tiene o no se resuelve. */
+  private async resolveCourseCode(
+    tenantId: string,
+    courseId: string | null,
+  ): Promise<string | null> {
+    if (!courseId) return null;
+    const course = await this.prisma.modCoursesCourse.findFirst({
+      where: { id: courseId, tenantId },
+      select: { ghlTag: true },
+    });
+    const code = course?.ghlTag?.trim();
+    return code ? code : null;
   }
 
   private pickConnection(

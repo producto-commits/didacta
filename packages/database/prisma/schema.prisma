@@ -1172,6 +1172,10 @@ model ModCoursesCourse {
   estimatedMinutes      Int?         @map("estimated_minutes")
   status                CourseStatus @default(DRAFT)
   category              String?
+  /// Código corto para la etiqueta de GHL (ej. "24h-arg"). Al completar un reto
+  /// del curso, la etiqueta que recibe el contacto es `<ghlTag>-<reto.key>`
+  /// (ver RetosGhlBridge). Null = la etiqueta es solo el key del reto.
+  ghlTag                String?      @map("ghl_tag") @db.VarChar(60)
   /// URL de una página de ventas externa donde se compra el curso (ej.
   /// "https://academia.ejemplo.com/curso"). Si está set, la ficha del curso muestra
   /// el CTA "Comprar" que redirige a esta URL. La inscripción posterior se

@@ -21,6 +21,8 @@ export interface Course {
   estimatedMinutes: number | null;
   status: CourseStatus;
   category: string | null;
+  /** Código corto para la etiqueta de GHL (ej. "24h-arg"). */
+  ghlTag: string | null;
   certificateTemplateId: string | null;
   /** URL de la página de ventas externa donde se compra el curso. */
   externalPurchaseUrl: string | null;
@@ -273,6 +275,7 @@ export const coursesApi = {
       title?: string;
       description?: string | null;
       category?: string | null;
+      ghlTag?: string | null;
       estimatedMinutes?: number | null;
       certificateTemplateId?: string | null;
       thumbnailUrl?: string | null;
