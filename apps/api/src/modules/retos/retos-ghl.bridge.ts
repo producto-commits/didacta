@@ -13,6 +13,8 @@ interface RetoCompletedPayload {
   retoId: string;
   retoKey: string;
   retoTitle: string;
+  /** Orden del reto dentro de su módulo (1..n) → parte "reto-N" de la etiqueta. */
+  position?: number | null;
   userId: string;
   courseId: string | null;
   courseName: string | null;
@@ -34,8 +36,8 @@ interface GhlConnection {
  * de GHL). Se elige la que coincide con el `ghlLocationId` del contacto; si el
  * contacto no trae location y hay una sola conexión, se usa esa.
  *
- * La etiqueta es el `reto.key` verbatim (slug estable y único por tenant, p.ej.
- * `bienvenido-1`): el equipo dispara sus workflows de GHL sobre esa etiqueta.
+ * La etiqueta es `<códigoCurso>-reto-<posición>` (ej. `24h-arg-reto-1`): el
+ * equipo dispara sus workflows de GHL sobre esa etiqueta.
  *
  * Best-effort en todo: si el usuario no tiene `ghlContactId` (no vino por
  * `/inscribe`), si no hay conexión aplicable, o si GHL falla, se registra y se
@@ -98,14 +100,18 @@ export class RetosGhlBridge implements OnModuleInit {
       return;
     }
 
-    // 4) Etiqueta = `<códigoCurso>-<retoKey>` si el curso tiene código GHL; si
-    //    no, solo el key del reto. El código lo fija el formador en el editor
-    //    del curso (columna ghl_tag), para que la etiqueta sea corta y diga de
-    //    qué curso es (ej. `24h-arg-bienvenido-1`).
-    const retoKey = data.retoKey.trim();
-    if (!retoKey) return;
+    // 4) Etiqueta = `<códigoCurso>-reto-<posición>` (ej. `24h-arg-reto-1`). La
+    //    parte del reto es su ORDEN dentro del módulo (reto-1, reto-2…), no la
+    //    clave interna. El código del curso lo fija el formador en el editor
+    //    (columna ghl_tag). Si no hay posición, cae a la clave del reto; si no
+    //    hay código de curso, va solo la parte del reto.
+    const retoPart =
+      typeof data.position === 'number' && data.position > 0
+        ? `reto-${data.position}`
+        : data.retoKey.trim();
+    if (!retoPart) return;
     const courseCode = await this.resolveCourseCode(tenantId, data.courseId);
-    const tag = courseCode ? `${courseCode}-${retoKey}` : retoKey;
+    const tag = courseCode ? `${courseCode}-${retoPart}` : retoPart;
 
     await this.ghl.addContactTags(conn.token, user.ghlContactId, [tag]);
     this.logger.log(

@@ -411,6 +411,7 @@ export class RetosEngineService {
       retoId,
       retoKey: reto.key,
       retoTitle: reto.title,
+      position: reto.position,
       userId,
       points: reto.points,
       badgeKey: reto.badgeKey,
