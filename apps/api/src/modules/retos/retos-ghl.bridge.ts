@@ -19,8 +19,8 @@ interface RetoCompletedPayload {
 }
 
 interface GhlConnection {
-  token?: string;
   locationId?: string;
+  token?: string;
 }
 
 /**
@@ -30,12 +30,16 @@ interface GhlConnection {
  * `retos.reto.completed` sigue emitiéndose y n8n puede seguir escuchándolo. Una
  * vez confiemos en esto, se borra el endpoint de n8n para retos.
  *
+ * Enrutado multi-cuenta: el tenant guarda VARIAS conexiones (una por sub-cuenta
+ * de GHL). Se elige la que coincide con el `ghlLocationId` del contacto; si el
+ * contacto no trae location y hay una sola conexión, se usa esa.
+ *
  * La etiqueta es el `reto.key` verbatim (slug estable y único por tenant, p.ej.
  * `bienvenido-1`): el equipo dispara sus workflows de GHL sobre esa etiqueta.
  *
  * Best-effort en todo: si el usuario no tiene `ghlContactId` (no vino por
- * `/inscribe`), si el tenant no tiene conexión GHL, o si GHL falla, se registra
- * y se sigue — nunca se deshace la completitud del reto.
+ * `/inscribe`), si no hay conexión aplicable, o si GHL falla, se registra y se
+ * sigue — nunca se deshace la completitud del reto.
  */
 @Injectable()
 export class RetosGhlBridge implements OnModuleInit {
@@ -64,19 +68,9 @@ export class RetosGhlBridge implements OnModuleInit {
   }
 
   private async applyTag(tenantId: string, data: RetoCompletedPayload): Promise<void> {
-    // 1) Conexión GHL del tenant (token cifrado). Sin token → nada que hacer.
-    let connection: GhlConnection | undefined;
-    try {
-      connection = (await this.config.get(tenantId, 'ghl', 'connection')) as
-        | GhlConnection
-        | undefined;
-    } catch (err) {
-      this.logger.warn(
-        `GHL: no se pudo leer la conexión del tenant ${tenantId}: ${(err as Error).message.slice(0, 200)}`,
-      );
-      return;
-    }
-    if (!connection?.token) {
+    // 1) Conexiones GHL del tenant (tokens cifrados).
+    const connections = await this.loadConnections(tenantId);
+    if (connections.length === 0) {
       this.logger.debug(`GHL sin configurar en ${tenantId}: reto ${data.retoKey} no etiquetado.`);
       return;
     }
@@ -84,7 +78,7 @@ export class RetosGhlBridge implements OnModuleInit {
     // 2) Identidad GHL del alumno. Sólo la tienen quienes vinieron por /inscribe.
     const user = await this.prisma.user.findFirst({
       where: { id: data.userId, tenantId },
-      select: { ghlContactId: true },
+      select: { ghlContactId: true, ghlLocationId: true },
     });
     if (!user?.ghlContactId) {
       this.logger.debug(
@@ -93,13 +87,52 @@ export class RetosGhlBridge implements OnModuleInit {
       return;
     }
 
-    // 3) Etiqueta = el key del reto (estable, único por tenant).
+    // 3) Elegir la conexión: por locationId del contacto; si no trae y hay una
+    //    sola, esa. Con varias y sin location, no adivinamos.
+    const conn = this.pickConnection(connections, user.ghlLocationId);
+    if (!conn?.token) {
+      this.logger.warn(
+        `GHL: sin conexión aplicable para el contacto ${user.ghlContactId} ` +
+          `(location ${user.ghlLocationId ?? 'null'}, ${connections.length} conexiones): reto ${data.retoKey} no etiquetado.`,
+      );
+      return;
+    }
+
+    // 4) Etiqueta = el key del reto (estable, único por tenant).
     const tag = data.retoKey.trim();
     if (!tag) return;
 
-    await this.ghl.addContactTags(connection.token, user.ghlContactId, [tag]);
+    await this.ghl.addContactTags(conn.token, user.ghlContactId, [tag]);
     this.logger.log(
-      `GHL: etiqueta "${tag}" aplicada al contacto ${user.ghlContactId} (reto completado).`,
+      `GHL: etiqueta "${tag}" aplicada al contacto ${user.ghlContactId} en location ${conn.locationId}.`,
     );
+  }
+
+  private pickConnection(
+    connections: GhlConnection[],
+    locationId: string | null,
+  ): GhlConnection | undefined {
+    if (locationId) return connections.find((c) => c.locationId === locationId);
+    if (connections.length === 1) return connections[0];
+    return undefined;
+  }
+
+  /** Lee la lista de conexiones; cae a la clave legada `connection` (una sola). */
+  private async loadConnections(tenantId: string): Promise<GhlConnection[]> {
+    try {
+      const list = (await this.config.get(tenantId, 'ghl', 'connections')) as
+        | GhlConnection[]
+        | undefined;
+      if (Array.isArray(list)) return list;
+      const legacy = (await this.config.get(tenantId, 'ghl', 'connection')) as
+        | GhlConnection
+        | undefined;
+      return legacy?.token ? [legacy] : [];
+    } catch (err) {
+      this.logger.warn(
+        `GHL: no se pudieron leer las conexiones del tenant ${tenantId}: ${(err as Error).message.slice(0, 200)}`,
+      );
+      return [];
+    }
   }
 }

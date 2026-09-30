@@ -4,14 +4,14 @@
  */
 
 import {
-  BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Logger,
+  Param,
   Post,
-  Put,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
@@ -26,36 +26,37 @@ import { ModuleContextFactory } from '../modules/module-context.factory';
 
 const ADMIN_ROLES = new Set(['super_admin', 'tenant_admin']);
 
-/** Credenciales de conexión a GoHighLevel guardadas cifradas para el tenant. */
-interface GhlConnection {
-  /** API token del tenant (Private Integration Token o access token). */
-  token: string;
-  /** Sub-cuenta por defecto (location) contra la que se verifica el token. */
-  locationId: string;
-}
-
 /**
- * Body del PUT. Ambos opcionales: el merge-on-omit conserva lo guardado, así
- * que sólo hace falta re-tipear el token para rotarlo (mismo criterio que la
- * `password` de SMTP y las claves de Stripe).
+ * Una conexión GHL = una sub-cuenta (location) con su token. Dropi tiene varias
+ * (Argentina, Colombia…), así que se guarda una LISTA: al completar un reto se
+ * enruta por el `ghlLocationId` del contacto a la cuenta correcta.
+ * `locationName`/`verifiedAt` no son secretos pero viven en el blob cifrado por
+ * simplicidad (el endpoint descifra para leerlos; el token nunca sale).
  */
-const GhlUpsertSchema = z.object({
-  token: z.string().max(500).optional(),
-  locationId: z.string().max(100).optional(),
-});
-
-interface GhlResponseDto {
-  /** True si hay token guardado (el cleartext nunca sale de la API). */
-  hasToken: boolean;
-  /** Location por defecto (no es secreto: ayuda al admin a confirmar la cuenta). */
-  locationId: string | null;
-  /** Nombre de la location de la última verificación exitosa. */
+interface GhlConnection {
+  locationId: string;
+  token: string;
   locationName: string | null;
   verifiedAt: string | null;
   verifiedByUserId: string | null;
-  /** True si el tenant tiene conexión propia guardada. */
-  hasTenantConfig: boolean;
 }
+
+/** Vista pública de una conexión (sin el token). */
+interface GhlConnectionDto {
+  locationId: string;
+  locationName: string | null;
+  verifiedAt: string | null;
+}
+
+interface GhlListDto {
+  connections: GhlConnectionDto[];
+}
+
+/** Alta/rotación de una conexión: token + locationId, se verifica al guardar. */
+const GhlAddSchema = z.object({
+  token: z.string().min(1).max(500),
+  locationId: z.string().min(1).max(100),
+});
 
 function requireAdmin(user: SessionClaims | undefined): SessionClaims {
   if (!user) throw new UnauthorizedException();
@@ -69,16 +70,24 @@ function requireAdmin(user: SessionClaims | undefined): SessionClaims {
   return user;
 }
 
+function toDto(list: GhlConnection[]): GhlListDto {
+  return {
+    connections: list.map((c) => ({
+      locationId: c.locationId,
+      locationName: c.locationName,
+      verifiedAt: c.verifiedAt,
+    })),
+  };
+}
+
 /**
- * Endpoints admin para gestionar la conexión directa con GoHighLevel
- * (Administración → Conexión GHL). Reemplaza el salto por n8n: aquí se guarda el
- * token con el que Academy llama a GHL directamente (etiquetas de retos, etc.).
+ * Endpoints admin para gestionar las conexiones directas con GoHighLevel
+ * (Administración → Conexión GHL). Reemplaza el salto por n8n: aquí se guardan
+ * los tokens con los que Academy llama a GHL directamente (etiquetas de retos).
  *
- * Almacenamiento (mismo patrón que AdminSmtpController / AdminStripeController):
- * - Credenciales: `tenant_setting` scope=`ghl`, key=`connection`, isSecret=true.
- *   `{ token, locationId }` cifrado AES-256-GCM por SecretCipherService.
- * - Metadata de verificación: scope=`ghl`, key=`connection_meta`, isSecret=false.
- *   `{ verifiedAt, verifiedByUserId, locationName }`.
+ * Almacenamiento: `tenant_setting` scope=`ghl`, key=`connections`, isSecret=true.
+ * Array de `GhlConnection` cifrado AES-256-GCM. Migra la clave legada
+ * `connection` (una sola) a la lista la primera vez que se lee.
  */
 @ApiTags('Admin GHL')
 @ApiBearerAuth()
@@ -93,138 +102,111 @@ export class AdminGhlController {
   ) {}
 
   @Get()
-  @ApiOperation({
-    summary:
-      'Devuelve el estado de la conexión GHL del tenant (nunca el token). hasToken indica si hay credencial guardada.',
-  })
-  async getCurrent(@CurrentUser() user: SessionClaims | undefined): Promise<GhlResponseDto> {
+  @ApiOperation({ summary: 'Lista las conexiones GHL del tenant (sin los tokens).' })
+  async list(@CurrentUser() user: SessionClaims | undefined): Promise<GhlListDto> {
     const claims = requireAdmin(user);
-    return this.readDto(claims.tenantId);
+    return toDto(await this.loadConnections(claims.tenantId));
   }
 
-  @Put()
+  @Post()
   @ApiOperation({
     summary:
-      'Crea o actualiza la conexión GHL del tenant. Reset `verifiedAt`. Token/locationId omitidos o vacíos conservan lo guardado.',
+      'Agrega o rota una conexión: verifica el token contra la location en GHL y, si es válido, la guarda con el nombre resuelto. Si la location ya existe, actualiza su token.',
   })
-  async upsert(
+  async add(
     @CurrentUser() user: SessionClaims | undefined,
-    @Body(new ZodValidationPipe(GhlUpsertSchema))
-    body: z.infer<typeof GhlUpsertSchema>,
-  ): Promise<GhlResponseDto> {
+    @Body(new ZodValidationPipe(GhlAddSchema)) body: z.infer<typeof GhlAddSchema>,
+  ): Promise<GhlListDto & { added: GhlConnectionDto }> {
     const claims = requireAdmin(user);
-    const config = this.modules.getTenantConfig();
 
-    let existing: Partial<GhlConnection> | undefined;
+    // Verificar SIEMPRE al guardar: así solo persistimos tokens que funcionan y
+    // guardamos el nombre que resuelve GHL (lo que pidió el usuario).
+    let verified: { ok: true; locationName: string | null };
     try {
-      existing = (await config.get(claims.tenantId, 'ghl', 'connection')) as
-        | Partial<GhlConnection>
-        | undefined;
+      verified = await this.ghl.verifyToken(body.token, body.locationId);
     } catch (err) {
-      this.logger.warn(
-        `[admin-ghl] no se pudo descifrar la conexión previa del tenant ${claims.tenantId}: ` +
-          `${(err as Error).message.slice(0, 200)}. Si el body no trae token se rechaza el update.`,
-      );
-    }
-
-    const merged: Partial<GhlConnection> = {
-      token: nonEmpty(body.token) ?? existing?.token,
-      locationId: nonEmpty(body.locationId) ?? existing?.locationId,
-    };
-    if (!merged.token || !merged.locationId) {
-      throw new BadRequestException({
-        message:
-          'Faltan datos: token y locationId son obligatorios (no hay valores previos guardados para completar lo que falta en el body).',
-        code: 'ADMIN_GHL_CREDENTIALS_REQUIRED',
-      });
-    }
-
-    await config.set(
-      claims.tenantId,
-      'ghl',
-      'connection',
-      { token: merged.token, locationId: merged.locationId } satisfies GhlConnection,
-      { isSecret: true, actorId: claims.sub },
-    );
-    // Cualquier cambio invalida la verificación anterior — el admin debe volver
-    // a probar la conexión.
-    await config.set(
-      claims.tenantId,
-      'ghl',
-      'connection_meta',
-      { verifiedAt: null, verifiedByUserId: null, locationName: null },
-      { isSecret: false, actorId: claims.sub },
-    );
-
-    return this.readDto(claims.tenantId);
-  }
-
-  @Post('test')
-  @ApiOperation({
-    summary:
-      'Verifica el token guardado leyendo la location en GHL (solo lectura). Si éxito, marca verifiedAt y guarda el nombre de la cuenta.',
-  })
-  async test(
-    @CurrentUser() user: SessionClaims | undefined,
-  ): Promise<{ ok: true; locationName: string | null; verifiedAt: string }> {
-    const claims = requireAdmin(user);
-    const config = this.modules.getTenantConfig();
-
-    let secret: Partial<GhlConnection> | undefined;
-    try {
-      secret = (await config.get(claims.tenantId, 'ghl', 'connection')) as
-        | Partial<GhlConnection>
-        | undefined;
-    } catch {
-      secret = undefined;
-    }
-    if (!secret?.token || !secret.locationId) {
-      throw new BadRequestException({
-        message: 'GHL no configurado para este tenant — guarda el token antes de probar.',
-        code: 'ADMIN_GHL_NOT_CONFIGURED',
-      });
-    }
-
-    let result: { ok: true; locationName: string | null };
-    try {
-      result = await this.ghl.verifyToken(secret.token, secret.locationId);
-    } catch (err) {
-      // El error real de GHL (token inválido, scope faltante, location ajena)
-      // viaja para que el admin diagnostique — no es secreto. Va en `message`
-      // (compat) y en `detail` (lo que enmarca cada idioma), como en Stripe.
       const detail = err instanceof GhlApiError ? err.detail : (err as Error).message;
-      throw new BadRequestException({
+      throw new ForbiddenException({
         message: `GHL rechazó el token: ${detail}`,
         code: 'ADMIN_GHL_TOKEN_REJECTED',
         detail,
       });
     }
 
-    const verifiedAt = new Date().toISOString();
-    await config.set(
-      claims.tenantId,
-      'ghl',
-      'connection_meta',
-      { verifiedAt, verifiedByUserId: claims.sub, locationName: result.locationName },
-      { isSecret: false, actorId: claims.sub },
-    );
+    const entry: GhlConnection = {
+      locationId: body.locationId,
+      token: body.token,
+      locationName: verified.locationName,
+      verifiedAt: new Date().toISOString(),
+      verifiedByUserId: claims.sub,
+    };
 
-    return { ok: true, locationName: result.locationName, verifiedAt };
+    const list = await this.loadConnections(claims.tenantId);
+    const idx = list.findIndex((c) => c.locationId === entry.locationId);
+    if (idx >= 0) list[idx] = entry;
+    else list.push(entry);
+
+    await this.saveConnections(claims.tenantId, list, claims.sub);
+    return {
+      ...toDto(list),
+      added: {
+        locationId: entry.locationId,
+        locationName: entry.locationName,
+        verifiedAt: entry.verifiedAt,
+      },
+    };
   }
 
-  private async readDto(tenantId: string): Promise<GhlResponseDto> {
+  @Delete(':locationId')
+  @ApiOperation({ summary: 'Elimina una conexión por su locationId.' })
+  async remove(
+    @CurrentUser() user: SessionClaims | undefined,
+    @Param('locationId') locationId: string,
+  ): Promise<GhlListDto> {
+    const claims = requireAdmin(user);
+    const list = await this.loadConnections(claims.tenantId);
+    const next = list.filter((c) => c.locationId !== locationId);
+    await this.saveConnections(claims.tenantId, next, claims.sub);
+    return toDto(next);
+  }
+
+  // ─── Persistencia ──────────────────────────────────────────────────────
+
+  private async loadConnections(tenantId: string): Promise<GhlConnection[]> {
     const config = this.modules.getTenantConfig();
-    let secret: Partial<GhlConnection> | undefined;
+    let list: GhlConnection[] | undefined;
     try {
-      secret = (await config.get(tenantId, 'ghl', 'connection')) as
-        | Partial<GhlConnection>
-        | undefined;
+      list = (await config.get(tenantId, 'ghl', 'connections')) as GhlConnection[] | undefined;
     } catch (err) {
       this.logger.warn(
-        `[admin-ghl] decrypt falló leyendo la conexión del tenant ${tenantId}: ${(err as Error).message.slice(0, 200)}`,
+        `[admin-ghl] decrypt falló leyendo connections del tenant ${tenantId}: ${(err as Error).message.slice(0, 200)}`,
       );
+      list = undefined;
+    }
+    if (Array.isArray(list)) return list;
+
+    // Migración de la clave legada `connection` (una sola conexión) a la lista.
+    const legacy = await this.readLegacy(tenantId);
+    if (legacy) {
+      await this.saveConnections(tenantId, [legacy], legacy.verifiedByUserId).catch(
+        () => undefined,
+      );
+      return [legacy];
+    }
+    return [];
+  }
+
+  private async readLegacy(tenantId: string): Promise<GhlConnection | null> {
+    const config = this.modules.getTenantConfig();
+    let secret: { token?: string; locationId?: string } | undefined;
+    try {
+      secret = (await config.get(tenantId, 'ghl', 'connection')) as
+        | { token?: string; locationId?: string }
+        | undefined;
+    } catch {
       secret = undefined;
     }
+    if (!secret?.token || !secret.locationId) return null;
     const meta =
       ((await config.get(tenantId, 'ghl', 'connection_meta').catch(() => undefined)) as
         | {
@@ -233,18 +215,22 @@ export class AdminGhlController {
             locationName?: string | null;
           }
         | undefined) ?? {};
-
     return {
-      hasToken: Boolean(secret?.token),
-      locationId: secret?.locationId ?? null,
+      locationId: secret.locationId,
+      token: secret.token,
       locationName: meta.locationName ?? null,
       verifiedAt: meta.verifiedAt ?? null,
       verifiedByUserId: meta.verifiedByUserId ?? null,
-      hasTenantConfig: Boolean(secret?.token),
     };
   }
-}
 
-function nonEmpty(value: string | undefined): string | undefined {
-  return value && value.length > 0 ? value : undefined;
+  private async saveConnections(
+    tenantId: string,
+    list: GhlConnection[],
+    actorId: string | null,
+  ): Promise<void> {
+    await this.modules
+      .getTenantConfig()
+      .set(tenantId, 'ghl', 'connections', list, { isSecret: true, actorId });
+  }
 }
