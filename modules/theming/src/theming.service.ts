@@ -383,7 +383,28 @@ export class ThemingService {
     if (!theme || !theme.faviconStorageKey || !theme.faviconMimeType) {
       throw new FaviconNotFoundError();
     }
-    const buffer = await this.ctx.storage.download(theme.faviconStorageKey);
+    // El favicon se pide en CADA carga (con cache-busting). Si el blob falta en
+    // storage o éste se demora, esta petición NO puede colgarse: colgarla llena
+    // las instancias y arrastra a lento TODO el sitio. Timeout corto → si no
+    // llega, tratamos como "sin favicon" (404) y el navegador usa el default.
+    const FAVICON_DOWNLOAD_TIMEOUT_MS = 3000;
+    let buffer: Buffer;
+    try {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      buffer = await Promise.race([
+        this.ctx.storage.download(theme.faviconStorageKey),
+        new Promise<Buffer>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('favicon_download_timeout')),
+            FAVICON_DOWNLOAD_TIMEOUT_MS,
+          );
+        }),
+      ]).finally(() => {
+        if (timer) clearTimeout(timer);
+      });
+    } catch {
+      throw new FaviconNotFoundError();
+    }
     return { buffer, mimeType: theme.faviconMimeType };
   }
 
