@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { AiTutorPanel } from '@/components/ai-tutor-panel';
 import { CourseStatusBadge } from '@/components/course-status-badge';
+import { DropiMissionBanner } from '@/components/dropi-mission-banner';
 import { authStorage } from '@/lib/auth-storage';
 import { CourseSalesPanel, LockedContentActions } from '@/modules/billing/course-sales-panel';
 import { LessonComments } from '@/components/lesson-comments';
@@ -281,6 +282,10 @@ export default function CourseAlumnoPage() {
       >
         {t('backToCatalog')}
       </Button>
+
+      {/* Misión de bienvenida "Regístrate en Dropi": solo altas por el link
+          público que aún no se registraron en Dropi (el banner se oculta solo). */}
+      <DropiMissionBanner />
 
       {isPreview ? (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm">

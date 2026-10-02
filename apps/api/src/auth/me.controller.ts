@@ -268,6 +268,24 @@ export class MeController {
     };
   }
 
+  @Get('dropi-mission')
+  @MfaExempt()
+  @ApiOperation({
+    summary:
+      'Estado de la misión de bienvenida "Regístrate en Dropi". pending=true solo si el alumno se dio de alta por el link público (registration_source=self_registro) y aún no se registró en Dropi (dropi_registered_at null).',
+  })
+  async dropiMissionStatus(@CurrentUser() user: SessionClaims | undefined) {
+    if (!user) throw new UnauthorizedException();
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: { registrationSource: true, dropiRegisteredAt: true },
+    });
+    if (!dbUser) throw new UnauthorizedException();
+    const pending =
+      dbUser.registrationSource === 'self_registro' && dbUser.dropiRegisteredAt === null;
+    return { pending, registerUrl: 'https://app.dropi.ar/auth/register' };
+  }
+
   @Post('onboarding/complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

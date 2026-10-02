@@ -50,6 +50,12 @@
   "certificateDownloadError": "We couldn’t download your certificate.",
   "invalidInviteCode": "The code is not valid or was already used.",
   "backToCatalog": "← Back to catalog",
+  "dropiMission": {
+    "eyebrow": "🧡 Your first mission",
+    "title": "Create your Dropi account",
+    "body": "Everything you learn here comes to life in Dropi: that's where you pick products, place orders and withdraw your earnings. Use the SAME email you registered with in Academy.",
+    "cta": "Create my Dropi account"
+  },
   "previewBadge": "Preview",
   "previewNote": "You are viewing it as an editor, without enrollment: progress is not saved and quizzes/SCORM activate upon enrolling.",
   "moduleCount": "{count, plural, one {<strong>#</strong> module} other {<strong>#</strong> modules}}",

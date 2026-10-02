@@ -50,6 +50,12 @@
   "certificateDownloadError": "No pudimos descargar tu certificado.",
   "invalidInviteCode": "El código no es válido o ya fue usado.",
   "backToCatalog": "← Volver al catálogo",
+  "dropiMission": {
+    "eyebrow": "🧡 Tu primera misión",
+    "title": "Creá tu cuenta en Dropi",
+    "body": "Todo lo que aprendés acá se activa en Dropi: ahí elegís productos, cargás pedidos y retirás tus ganancias. Usá el MISMO correo con el que te registraste en Academy.",
+    "cta": "Crear mi cuenta en Dropi"
+  },
   "previewBadge": "Vista previa",
   "previewNote": "Lo ves como editor, sin matrícula: el progreso no se guarda y los quizzes/SCORM se activan al matricularse.",
   "moduleCount": "{count, plural, one {<strong>#</strong> módulo} other {<strong>#</strong> módulos}}",

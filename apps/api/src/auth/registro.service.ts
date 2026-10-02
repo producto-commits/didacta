@@ -153,6 +153,9 @@ export class RegistroService {
             status: 'ACTIVE',
             passwordHash,
             mustChangePassword: false,
+            // Origen = link público → habilita la misión de bienvenida "Regístrate
+            // en Dropi" (los de inscribe/GHL no la ven).
+            registrationSource: 'self_registro',
           },
         });
         if (role) await tx.userRole.create({ data: { userId: created.id, roleId: role.id } });

@@ -243,6 +243,13 @@ model User {
   ghlContactId          String?    @map("ghl_contact_id") @db.VarChar(64)
   /// ID de la Location (subcuenta) de GoHighLevel del contacto.
   ghlLocationId         String?    @map("ghl_location_id") @db.VarChar(64)
+  /// Cómo se dio de alta el usuario: `self_registro` (link público /registro) o
+  /// `inscribe` (alta externa por GHL/n8n). Null = altas previas. Gobierna la
+  /// misión de bienvenida "Regístrate en Dropi" (solo para `self_registro`).
+  registrationSource    String?    @map("registration_source") @db.VarChar(40)
+  /// Cuándo el contacto se registró en Dropi (lo marca el webhook entrante de
+  /// GHL `registrado_dropi_argentina`). Null = aún no. Oculta la misión.
+  dropiRegisteredAt     DateTime?  @map("dropi_registered_at")
   createdAt             DateTime   @default(now()) @map("created_at")
   updatedAt             DateTime   @updatedAt @map("updated_at")
   deletedAt             DateTime?  @map("deleted_at")

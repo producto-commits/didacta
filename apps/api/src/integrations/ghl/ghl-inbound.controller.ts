@@ -6,44 +6,37 @@
 import { Body, Controller, Headers, HttpCode, HttpStatus, Logger, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RetosEngineService } from '../../modules/retos/retos-engine.service';
 import { runAsTenant, runGlobalWithoutTenant } from '../../tenancy/tenant-context.storage';
-
-/** Key del reto que se completa al confirmar el registro en Dropi (seed bienvenido). */
-const REGISTRO_RETO_KEY = 'registro-dropi';
 
 /**
  * Webhook ENTRANTE de GoHighLevel (GHL → Academy, directo, sin n8n).
  *
  * GHL lo llama cuando el contacto se registra en Dropi (workflow "Usuario creado
  * en dropi" / etiqueta `registrado_dropi_argentina`). Academy busca al alumno por
- * su `ghlContactId` (= `contact_id` del payload) y completa el reto "Regístrate
- * en Dropi".
+ * su `ghlContactId` (= `contact_id` del payload) y marca que YA se registró en
+ * Dropi (`dropi_registered_at`) → oculta la misión de bienvenida "Regístrate en
+ * Dropi".
  *
  * Público (sin JwtAuthGuard): lo invoca GHL. Auth por secreto en header
  * `X-Webhook-Secret` cuando `GHL_INBOUND_WEBHOOK_SECRET` está definido; mientras
- * se configura, sin secreto en el entorno se acepta sin verificar (y se avisa).
- * Responde 200 SIEMPRE para que GHL no reintente en bucle.
+ * se configura, sin secreto se acepta sin verificar (y se avisa). Responde 200
+ * SIEMPRE para que GHL no reintente en bucle.
  *
- * RLS (patrón webhook F3, tenant-context.storage): el usuario se resuelve con un
- * lookup GLOBAL sancionado (contact_id → fila → tenantId) y el completado corre
- * escopado con `runAsTenant`.
+ * RLS (patrón webhook F3): el usuario se resuelve con un lookup GLOBAL sancionado
+ * (contact_id → fila → tenantId) y la escritura corre escopada con `runAsTenant`.
  */
 @ApiTags('GHL Inbound')
 @Controller('webhooks/ghl')
 export class GhlInboundController {
   private readonly logger = new Logger(GhlInboundController.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly engine: RetosEngineService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   @Post('registrado')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Webhook entrante de GHL: contacto registrado en Dropi → completa el reto "Regístrate en Dropi". Responde 200 siempre.',
+      'Webhook entrante de GHL: contacto registrado en Dropi → marca dropi_registered_at (oculta la misión). Responde 200 siempre.',
   })
   async registrado(
     @Body() body: unknown,
@@ -71,28 +64,34 @@ export class GhlInboundController {
     const user = await runGlobalWithoutTenant(() =>
       this.prisma.user.findFirst({
         where: contactId ? { ghlContactId: contactId } : { email: email ?? undefined },
-        select: { id: true, tenantId: true, email: true },
+        select: { id: true, tenantId: true, email: true, dropiRegisteredAt: true },
       }),
     );
     if (!user) {
       this.logger.warn(
-        `ghl-inbound: sin alumno para contactId=${contactId ?? '—'} email=${email ?? '—'} — reto no completado.`,
+        `ghl-inbound: sin alumno para contactId=${contactId ?? '—'} email=${email ?? '—'}.`,
       );
       return { ok: true };
     }
+    if (user.dropiRegisteredAt) {
+      this.logger.log(`ghl-inbound: ${user.email} ya estaba marcado como registrado en Dropi.`);
+      return { ok: true };
+    }
 
-    // 2) Completar el reto ESCOPADO al tenant del alumno.
+    // 2) Marcar "registrado en Dropi" ESCOPADO al tenant del alumno.
     try {
-      const res = await runAsTenant(
+      await runAsTenant(
         user.tenantId,
-        () => this.engine.completeRetoByKeyExternal(user.tenantId, user.id, REGISTRO_RETO_KEY),
+        () =>
+          this.prisma.user.update({
+            where: { id: user.id },
+            data: { dropiRegisteredAt: new Date() },
+          }),
         { userId: user.id, traceLabel: 'ghl-inbound' },
       );
-      this.logger.log(
-        `ghl-inbound: reto ${REGISTRO_RETO_KEY} para ${user.email} → found=${res.found} justCompleted=${res.justCompleted}`,
-      );
+      this.logger.log(`ghl-inbound: ${user.email} marcado como registrado en Dropi.`);
     } catch (err) {
-      this.logger.warn(`ghl-inbound: fallo completando el reto para ${user.email}: ${String(err)}`);
+      this.logger.warn(`ghl-inbound: fallo marcando a ${user.email}: ${String(err)}`);
     }
     return { ok: true };
   }
