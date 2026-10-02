@@ -79,6 +79,37 @@ export class GhlClientService {
     return { ok: true, locationName: body.location?.name ?? null };
   }
 
+  /**
+   * Crea o actualiza un contacto en una sub-cuenta (location). GHL deduplica por
+   * email/teléfono DENTRO de la location: si ya existe uno con ese email o
+   * teléfono lo devuelve (actualizado), si no lo crea. Devuelve el id del
+   * contacto (nuevo o existente) para guardarlo en el usuario.
+   */
+  async upsertContact(
+    token: string,
+    input: {
+      locationId: string;
+      email?: string;
+      phone?: string;
+      firstName?: string;
+      lastName?: string;
+    },
+  ): Promise<{ contactId: string | null; isNew: boolean }> {
+    const body = await this.request<{ contact?: { id?: string }; new?: boolean }>(
+      token,
+      'POST',
+      '/contacts/upsert',
+      {
+        locationId: input.locationId,
+        ...(input.email ? { email: input.email } : {}),
+        ...(input.phone ? { phone: input.phone } : {}),
+        ...(input.firstName ? { firstName: input.firstName } : {}),
+        ...(input.lastName ? { lastName: input.lastName } : {}),
+      },
+    );
+    return { contactId: body.contact?.id ?? null, isNew: body.new ?? false };
+  }
+
   private async request<T>(
     token: string,
     method: 'GET' | 'POST' | 'PUT',

@@ -18,6 +18,27 @@ export const signupSchema = z.object({
 });
 export type SignupDto = z.infer<typeof signupSchema>;
 
+/**
+ * Registro público por el LINK de captación (distinto de `signup`): sin
+ * contraseña (el alumno la define por el enlace del email) y con nombres,
+ * apellidos y teléfono (con indicativo de país, ej. `+54 3001234567`). Crea el
+ * contacto en GHL (dedupe por correo/teléfono). Ver RegistroService.
+ */
+export const registroSchema = z.object({
+  tenantSlug: z.string().min(1).max(64).optional(),
+  email: z.string().email(),
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  /** E.164 con indicativo, ej. `+543001234567`. Se normaliza en el servidor. */
+  phone: z
+    .string()
+    .trim()
+    .min(6)
+    .max(25)
+    .regex(/^\+?[0-9\s-]{6,25}$/, 'Teléfono inválido'),
+});
+export type RegistroDto = z.infer<typeof registroSchema>;
+
 export const signinSchema = z.object({
   tenantSlug: z.string().min(1).max(64).optional(),
   email: z.string().email(),

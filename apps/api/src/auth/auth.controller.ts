@@ -13,16 +13,19 @@ import { extractClientContext } from './client-context';
 import {
   forgotPasswordSchema,
   refreshSchema,
+  registroSchema,
   resetPasswordSchema,
   signinSchema,
   signupSchema,
   type ForgotPasswordDto,
   type RefreshDto,
+  type RegistroDto,
   type ResetPasswordDto,
   type SigninDto,
   type SignupDto,
 } from './dto';
 import { PasswordResetService } from './password-reset.service';
+import { RegistroService } from './registro.service';
 import { SigninContextService } from './signin-context.service';
 import { ZodValidationPipe } from './zod-validation.pipe';
 import { resolvePublicHost } from '../common/resolve-public-host';
@@ -35,6 +38,7 @@ export class AuthController {
     private readonly passwordReset: PasswordResetService,
     private readonly tenantResolver: TenantResolverService,
     private readonly signinContext: SigninContextService,
+    private readonly registro: RegistroService,
   ) {}
 
   /**
@@ -98,6 +102,24 @@ export class AuthController {
   ) {
     const resolvedTenantId = await this.resolveTenantIdFromHost(req);
     return this.auth.signup(dto, extractClientContext(req), resolvedTenantId);
+  }
+
+  @Post('registro')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Registro público por el link de captación: sin contraseña (correo, nombres, apellidos, teléfono). Crea el alumno + contacto en GHL (Argentina) y envía email con enlace para fijar contraseña. Responde 200 siempre.',
+  })
+  async registroPublico(
+    @Req() req: FastifyRequest,
+    @Body(new ZodValidationPipe(registroSchema)) dto: RegistroDto,
+  ) {
+    const resolvedTenantId = await this.resolveTenantIdFromHost(req);
+    const webBaseUrl = await this.tenantResolver.resolveTenantWebBaseUrl(
+      resolvedTenantId ?? null,
+      req,
+    );
+    return this.registro.register(resolvedTenantId, dto, webBaseUrl, extractClientContext(req));
   }
 
   @Post('signin')

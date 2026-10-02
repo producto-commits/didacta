@@ -77,4 +77,40 @@ describe('GhlClientService', () => {
     expect(init.method ?? 'GET').toBe('GET');
     expect(GhlApiError).toBeDefined();
   });
+
+  it('upsertContact: POST /contacts/upsert con location + datos; devuelve el contactId', async () => {
+    const fetchFn = mockFetchOnce({
+      ok: true,
+      status: 200,
+      json: { contact: { id: 'cont-123' }, new: true },
+    });
+    const svc = new GhlClientService();
+
+    const out = await svc.upsertContact('tok', {
+      locationId: 'loc-arg',
+      email: 'a@b.com',
+      phone: '+543001234567',
+      firstName: 'Juan',
+      lastName: 'Pérez',
+    });
+
+    expect(out).toEqual({ contactId: 'cont-123', isNew: true });
+    const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/contacts/upsert');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      locationId: 'loc-arg',
+      email: 'a@b.com',
+      phone: '+543001234567',
+      firstName: 'Juan',
+      lastName: 'Pérez',
+    });
+  });
+
+  it('CONTROL: upsertContact sin contact.id devuelve contactId null', async () => {
+    mockFetchOnce({ ok: true, status: 200, json: {} });
+    const svc = new GhlClientService();
+    const out = await svc.upsertContact('tok', { locationId: 'loc', email: 'a@b.com' });
+    expect(out).toEqual({ contactId: null, isNew: false });
+  });
 });
