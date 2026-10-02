@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GhlApiError, GhlClientService } from '../integrations/ghl/ghl-client.service';
 import { PrismaAuditLogService } from '../modules/prisma-audit-log.service';
 import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
+import { runAsTenant } from '../tenancy/tenant-context.storage';
 import type { ClientContext } from './client-context';
 import type { RegistroDto } from './dto';
 import { PasswordResetService } from './password-reset.service';
@@ -71,41 +72,50 @@ export class RegistroService {
     const name = `${dto.firstName} ${dto.lastName}`.replace(/\s+/g, ' ').trim();
     const phone = normalizePhone(dto.phone);
 
-    const { userId, created } = await this.findOrCreateUser(tenantId, dto.email, name);
+    // Endpoint PÚBLICO (sin middleware de tenant): abrimos el contexto RLS del
+    // tenant resuelto por host, si no el `user.create` / lectura de tenant_setting
+    // violan la policy (42501). Mismo patrón que `signup`.
+    await runAsTenant(
+      tenantId,
+      async () => {
+        const { userId, created } = await this.findOrCreateUser(tenantId, dto.email, name);
 
-    // 1) GHL: crear/actualizar el contacto en Argentina + etiquetas (best-effort).
-    try {
-      await this.syncGhlContact(tenantId, userId, {
-        email: dto.email,
-        phone,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-      });
-    } catch (err) {
-      const detail = err instanceof GhlApiError ? err.detail : String(err);
-      this.logger.warn(`registro: fallo creando contacto en GHL (${dto.email}): ${detail}`);
-    }
+        // 1) GHL: crear/actualizar el contacto en Argentina + etiquetas (best-effort).
+        try {
+          await this.syncGhlContact(tenantId, userId, {
+            email: dto.email,
+            phone,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+          });
+        } catch (err) {
+          const detail = err instanceof GhlApiError ? err.detail : String(err);
+          this.logger.warn(`registro: fallo creando contacto en GHL (${dto.email}): ${detail}`);
+        }
+
+        await this.auditLog.record({
+          tenantId,
+          actorId: userId,
+          action: 'auth.registro',
+          resourceType: 'user',
+          resourceId: userId,
+          metadata: { email: dto.email, created },
+          ip: ctx.ip ?? undefined,
+          userAgent: ctx.userAgent ?? undefined,
+        });
+      },
+      { traceLabel: 'registro' },
+    );
 
     // 2) Email con enlace para fijar contraseña (copy de invitación/bienvenida).
-    //    Se envía SIEMPRE (nuevo o existente) — es la puerta de entrada. El
-    //    PasswordResetService no revela si el email existía (anti-enumeración).
+    //    Se envía SIEMPRE (nuevo o existente) — es la puerta de entrada. Se
+    //    auto-escopa al tenant por dentro (anti-enumeración incluido).
     await this.passwordReset.requestAndSendEmail(
       { email: dto.email, resolvedTenantId: tenantId },
       webBaseUrl,
       ctx,
       { allowPending: true, ttlMinutes: SET_PASSWORD_TTL_MINUTES, asInvitation: true },
     );
-
-    await this.auditLog.record({
-      tenantId,
-      actorId: userId,
-      action: 'auth.registro',
-      resourceType: 'user',
-      resourceId: userId,
-      metadata: { email: dto.email, created },
-      ip: ctx.ip ?? undefined,
-      userAgent: ctx.userAgent ?? undefined,
-    });
 
     return { ok: true };
   }
