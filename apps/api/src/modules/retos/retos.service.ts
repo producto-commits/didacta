@@ -22,10 +22,14 @@ export interface RetoSeed {
   title: string;
   points: number;
   badge: { key: string; label: string; emoji?: string };
-  /** Fragmento del título de la lección VIDEO del curso (case/acentos-insensible). */
-  lessonTitleContains: string;
+  /**
+   * Fragmento del título de la lección VIDEO del curso (case/acentos-insensible).
+   * Opcional: un reto puede no tener lección/vídeo (p.ej. "Regístrate en Dropi").
+   */
+  lessonTitleContains?: string;
   completionMessage?: string;
-  quiz: {
+  /** Opcional: un reto puede no tener quiz (se completa por acciones / señal externa). */
+  quiz?: {
     title: string;
     passThreshold: number;
     showFeedback: boolean;
@@ -239,10 +243,15 @@ export class RetosService {
     const results: ImportRetoResult[] = [];
 
     for (const r of seed.retos) {
-      const lesson = lessons.find(
-        (l) => l.type === 'VIDEO' && normalize(l.title).includes(normalize(r.lessonTitleContains)),
-      );
-      if (!lesson) {
+      // Lección opcional: solo se busca si el reto declara `lessonTitleContains`.
+      const lesson = r.lessonTitleContains
+        ? lessons.find(
+            (l) =>
+              l.type === 'VIDEO' &&
+              normalize(l.title).includes(normalize(r.lessonTitleContains ?? '')),
+          )
+        : undefined;
+      if (r.lessonTitleContains && !lesson) {
         this.logger.warn(
           `Seed reto ${r.key}: no hay lección VIDEO cuyo título contenga "${r.lessonTitleContains}".`,
         );
@@ -253,11 +262,11 @@ export class RetosService {
         include: { actions: true },
       });
 
-      // Quiz: solo se crea si el reto no tiene uno todavía.
+      // Quiz: solo se crea si el reto DECLARA uno y no lo tiene todavía.
       let quizId = existing?.quizId ?? null;
       let quizCreated = false;
       let questionsCreated = 0;
-      if (!quizId) {
+      if (!quizId && r.quiz) {
         const quiz = await assessments.createQuiz(tenantId, actorId, {
           lessonId: lesson?.id,
           title: r.quiz.title,

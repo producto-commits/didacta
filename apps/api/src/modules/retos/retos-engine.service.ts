@@ -243,6 +243,31 @@ export class RetosEngineService {
     return this.evaluate(tenantId, userId, retoId);
   }
 
+  /**
+   * Completa un reto por su KEY desde una señal EXTERNA de plataforma (p.ej. el
+   * webhook entrante de GHL "registrado en Dropi"). Marca hechas todas sus
+   * acciones requeridas y reevalúa. NO pasa por el gate CLIENT_MARKABLE: no es
+   * el alumno quien marca, es la plataforma. Idempotente; no-op si el reto no
+   * existe/está publicado.
+   */
+  async completeRetoByKeyExternal(tenantId: string, userId: string, retoKey: string) {
+    const reto = await this.prisma.modRetosReto.findFirst({
+      where: { tenantId, key: retoKey, status: 'PUBLISHED' },
+      include: { actions: true },
+    });
+    if (!reto) {
+      this.logger.warn(
+        `completeRetoByKeyExternal: reto "${retoKey}" no existe/publicado en ${tenantId}.`,
+      );
+      return { found: false, completed: false, justCompleted: false };
+    }
+    for (const a of reto.actions.filter((x) => x.required)) {
+      await this.upsertDone(tenantId, userId, reto.id, a.key, { set: 1 });
+    }
+    const res = await this.evaluate(tenantId, userId, reto.id);
+    return { found: true, completed: res.completed, justCompleted: res.justCompleted };
+  }
+
   /** `assessments.attempt.passed` de un quiz que pertenece a un reto. */
   async onQuizPassed(tenantId: string, userId: string, quizId: string) {
     const reto = await this.prisma.modRetosReto.findFirst({

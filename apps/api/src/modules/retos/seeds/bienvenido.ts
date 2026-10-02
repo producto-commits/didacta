@@ -17,8 +17,32 @@ export const bienvenidoSeed: RetoSeedFile = {
   moduleKey: 'bienvenido',
   retos: [
     {
-      key: 'bienvenido-1',
+      key: 'registro-dropi',
       position: 1,
+      title: 'Regístrate en Dropi',
+      points: 50,
+      badge: { key: 'cuenta-dropi', label: 'Cuenta Dropi activada', emoji: '🚀' },
+      completionMessage:
+        '¡Listo! Ya tenés tu cuenta en Dropi. Ahora sí podés elegir productos, cargar pedidos y retirar tus ganancias.',
+      // Sin vídeo ni quiz: se completa cuando el alumno crea su cuenta en Dropi
+      // (GHL avisa por el webhook entrante /webhooks/ghl/registrado) o, de
+      // respaldo, cuando confirma a mano desde la página del reto.
+      actions: [
+        {
+          key: 'crear-cuenta-dropi',
+          type: 'SELF_CONFIRM',
+          title: 'Creá tu cuenta en Dropi',
+          required: true,
+          config: {
+            instructions:
+              'Entrá a https://app.dropi.ar/auth/register y creá tu cuenta con el MISMO correo con el que te registraste en Academy. Cuando lo hagas, este reto se completa solo.',
+          },
+        },
+      ],
+    },
+    {
+      key: 'bienvenido-1',
+      position: 2,
       title: 'Entender el modelo',
       points: 50,
       badge: {
@@ -134,7 +158,7 @@ export const bienvenidoSeed: RetoSeedFile = {
     },
     {
       key: 'bienvenido-2',
-      position: 2,
+      position: 3,
       title: 'Elegí tu primer producto ganador',
       points: 80,
       badge: {
@@ -280,7 +304,7 @@ export const bienvenidoSeed: RetoSeedFile = {
     },
     {
       key: 'bienvenido-3',
-      position: 3,
+      position: 4,
       title: 'Aprendé a vender sin publicidad',
       points: 100,
       badge: {
@@ -405,7 +429,7 @@ export const bienvenidoSeed: RetoSeedFile = {
     },
     {
       key: 'bienvenido-4',
-      position: 4,
+      position: 5,
       title: 'Cómo cargar tu primer pedido en Dropi',
       points: 120,
       badge: {
@@ -508,7 +532,7 @@ export const bienvenidoSeed: RetoSeedFile = {
     },
     {
       key: 'bienvenido-5',
-      position: 5,
+      position: 6,
       title: 'Cómo retirar tus ganancias',
       points: 150,
       badge: {

@@ -7,6 +7,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { AiModule } from '../../ai/ai.module';
 import { AuthModule } from '../../auth/auth.module';
 import { GhlModule } from '../../integrations/ghl/ghl.module';
+import { GhlInboundController } from '../../integrations/ghl/ghl-inbound.controller';
 import { ModulesModule } from '../modules.module';
 import { MeRetosController } from './me-retos.controller';
 import { RetosAdminController } from './retos-admin.controller';
@@ -24,7 +25,7 @@ import { RetosSubmissionsService } from './retos-submissions.service';
 /// Convención sub-módulo (ADR-011): forwardRef recíproco con ModulesModule.
 @Module({
   imports: [AuthModule, AiModule, GhlModule, forwardRef(() => ModulesModule)],
-  controllers: [RetosAdminController, MeRetosController],
+  controllers: [RetosAdminController, MeRetosController, GhlInboundController],
   providers: [
     RetosService,
     RetosEngineService,
