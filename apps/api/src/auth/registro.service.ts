@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GhlApiError, GhlClientService } from '../integrations/ghl/ghl-client.service';
 import { PrismaAuditLogService } from '../modules/prisma-audit-log.service';
 import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
+import { ModuleRegistryService } from '../modules/module-registry.service';
 import { runAsTenant } from '../tenancy/tenant-context.storage';
 import type { ClientContext } from './client-context';
 import type { RegistroDto } from './dto';
@@ -24,6 +25,8 @@ const SET_PASSWORD_TTL_MINUTES = 60 * 24 * 7;
  * mensaje M1 ("registrate en Dropi") en los workflows de GHL.
  */
 const REGISTRO_TAGS = ['registrado_dropi_academy', 'academy_argentina'];
+/** Curso en el que se matricula al alumno al registrarse por el link. */
+const REGISTRO_COURSE_SLUG = 'vende-en-24h-con-dropi';
 
 interface GhlConnection {
   locationId?: string;
@@ -55,6 +58,7 @@ export class RegistroService {
     private readonly auditLog: PrismaAuditLogService,
     private readonly config: PrismaTenantConfigService,
     private readonly ghl: GhlClientService,
+    private readonly registry: ModuleRegistryService,
   ) {}
 
   async register(
@@ -79,6 +83,10 @@ export class RegistroService {
       tenantId,
       async () => {
         const { userId, created } = await this.findOrCreateUser(tenantId, dto.email, name);
+
+        // 0) Matricular en el curso de Academy (idempotente, best-effort): sin
+        //    esto el alumno entra pero no ve el curso ni sus retos.
+        await this.enrollInCourse(tenantId, userId, dto.email);
 
         // 1) GHL: crear/actualizar el contacto en Argentina + etiquetas (best-effort).
         try {
@@ -160,6 +168,29 @@ export class RegistroService {
       });
       if (!again) throw err;
       return { userId: again.id, created: false };
+    }
+  }
+
+  /** Matricula al alumno en el curso del link (idempotente, best-effort). */
+  private async enrollInCourse(tenantId: string, userId: string, email: string): Promise<void> {
+    try {
+      const course = await this.prisma.modCoursesCourse.findUnique({
+        where: { tenantId_slug: { tenantId, slug: REGISTRO_COURSE_SLUG } },
+        select: { id: true },
+      });
+      if (!course) {
+        this.logger.warn(
+          `registro: curso "${REGISTRO_COURSE_SLUG}" no existe en ${tenantId} — ${email} sin matrícula.`,
+        );
+        return;
+      }
+      await this.registry.getLearningService().enrollFromApi(tenantId, userId, course.id);
+      this.logger.log(`registro: ${email} matriculado en ${REGISTRO_COURSE_SLUG}.`);
+    } catch (err) {
+      // AlreadyEnrolled / COURSE_NOT_PUBLISHED / otro: no rompe el registro.
+      this.logger.warn(
+        `registro: matrícula de ${email} en ${REGISTRO_COURSE_SLUG}: ${String(err)}`,
+      );
     }
   }
 

@@ -11,6 +11,7 @@ import { AdminModule } from './admin/admin.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
+import { RegistroModule } from './auth/registro.module';
 import { BrandingModule } from './branding/branding.module';
 import { HealthModule } from './health/health.module';
 import { InscribeModule } from './enrollment/inscribe.module';
@@ -99,6 +100,9 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     BrandingModule,
     RegistryModule,
     AuthModule,
+    // Registro público por el link de captación (hoja: importa Auth + Modules +
+    // Ghl para crear alumno + matrícula + contacto GHL sin ciclo).
+    RegistroModule,
     // Bootstrap del primer arranque. Endpoints públicos /setup/status + /setup/init.
     // Va después de AuthModule porque reusa PasswordService + TokenService.
     SetupModule,

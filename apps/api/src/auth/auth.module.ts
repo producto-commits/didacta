@@ -10,8 +10,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PrismaAuditLogService } from '../modules/prisma-audit-log.service';
 import { PrismaInstanceConfigService } from '../modules/prisma-instance-config.service';
 import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
-import { GhlModule } from '../integrations/ghl/ghl.module';
-import { RegistroService } from './registro.service';
 import { SecretCipherService } from '../modules/secret-cipher.service';
 import { SmtpAdapterService } from '../modules/smtp-adapter.service';
 import { TenantSmtpResolverService } from '../modules/tenant-smtp-resolver.service';
@@ -57,7 +55,6 @@ function loadCipherKeyForAuth(): string {
 }
 
 @Module({
-  imports: [GhlModule],
   controllers: [
     AuthController,
     MfaController,
@@ -69,7 +66,6 @@ function loadCipherKeyForAuth(): string {
   providers: [
     AuthService,
     PasswordResetService,
-    RegistroService,
     PasswordService,
     SigninContextService,
     TokenService,
