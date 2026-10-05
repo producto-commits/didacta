@@ -210,6 +210,19 @@ export const meApi = {
       bearer,
     );
   },
+
+  /**
+   * Estado de la misión de bienvenida "Regístrate en Dropi". `pending` es true
+   * solo para alumnos de alta por el link público que aún no tienen cuenta en
+   * Dropi; el banner y el "Reto 0" del curso se muestran mientras sea true.
+   */
+  async getDropiMission(bearer: string): Promise<{ pending: boolean; registerUrl: string }> {
+    return apiFetch<{ pending: boolean; registerUrl: string }>(
+      '/api/v1/me/dropi-mission',
+      { method: 'GET' },
+      bearer,
+    );
+  },
 };
 
 const TIMEZONE_GROUPS: Record<string, string[]> = {

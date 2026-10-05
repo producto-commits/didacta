@@ -18,6 +18,7 @@ import { authStorage } from '@/lib/auth-storage';
 import { meApi } from '@/lib/me';
 import { parseAiAction } from '@/lib/reto-ai-action';
 import { RetoPanel } from '@/components/reto-panel';
+import { DropiMissionRetoCard } from '@/components/dropi-mission-reto-card';
 import { retosApi, type LessonReto } from '@/lib/retos';
 import type { CourseLesson } from '@/lib/courses';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
@@ -167,13 +168,39 @@ export function LessonPlayer({
   useEffect(() => {
     void refreshReto();
   }, [refreshReto]);
-  // La página abre la tercera columna solo si la lección tiene reto.
-  const hasReto = lessonReto !== null;
+  // Misión de bienvenida "Regístrate en Dropi": pendiente solo para alumnos de
+  // alta por el link público que aún no tienen cuenta en Dropi. Mientras lo esté,
+  // pintamos el "Reto 0" ARRIBA del reto de la lección, en TODAS las lecciones.
+  const [dropiMission, setDropiMission] = useState<{
+    pending: boolean;
+    registerUrl: string;
+  } | null>(null);
   useEffect(() => {
-    onRetoChange?.(hasReto);
+    if (preview) return;
+    const token = authStorage.getAccessToken();
+    if (!token) return;
+    let cancelled = false;
+    void meApi
+      .getDropiMission(token)
+      .then((m) => {
+        if (!cancelled) setDropiMission(m);
+      })
+      .catch(() => {
+        /* sin misión visible si falla (no es crítico) */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preview]);
+  const missionPending = Boolean(dropiMission?.pending);
+  // La página abre la tercera columna si la lección tiene reto O si hay misión
+  // pendiente (para que el Reto 0 se vea aunque la lección no tenga reto).
+  const showRetoColumn = lessonReto !== null || missionPending;
+  useEffect(() => {
+    onRetoChange?.(showRetoColumn);
     // onRetoChange no va en deps: se recrea cada render de la página.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasReto]);
+  }, [showRetoColumn]);
   // Con sitio para la tercera columna (xl, 1280px) el reto va apilado en ella;
   // por debajo, el contenedor baja bajo el video y el reto usa el formato ancho.
   const [xl, setXl] = useState(false);
@@ -469,20 +496,27 @@ export function LessonPlayer({
 
         <LessonAttachments content={lesson.content} />
 
-        {lessonReto
+        {lessonReto || missionPending
           ? (() => {
               const panel = (
-                <RetoPanel
-                  data={lessonReto}
-                  courseId={courseId}
-                  enrollmentId={enrollmentId}
-                  lessonId={lesson.id}
-                  lessonTitle={lesson.title}
-                  onRefresh={refreshReto}
-                  onSelectLesson={onSelectLesson}
-                  isYouTube={isYouTubeVideo}
-                  layout={retoHost && xl ? 'column' : 'wide'}
-                />
+                <div className="space-y-4">
+                  {missionPending && dropiMission ? (
+                    <DropiMissionRetoCard registerUrl={dropiMission.registerUrl} />
+                  ) : null}
+                  {lessonReto ? (
+                    <RetoPanel
+                      data={lessonReto}
+                      courseId={courseId}
+                      enrollmentId={enrollmentId}
+                      lessonId={lesson.id}
+                      lessonTitle={lesson.title}
+                      onRefresh={refreshReto}
+                      onSelectLesson={onSelectLesson}
+                      isYouTube={isYouTubeVideo}
+                      layout={retoHost && xl ? 'column' : 'wide'}
+                    />
+                  ) : null}
+                </div>
               );
               // Tercera columna de la página del curso (Contenido | Video | Reto):
               // el reto se pinta ahí por portal; sin contenedor, va bajo el video.
