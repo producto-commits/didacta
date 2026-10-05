@@ -16,6 +16,7 @@
 import adminApi from './adminApi.json';
 import adminEngagement from './adminEngagement.json';
 import adminGhl from './adminGhl.json';
+import adminFacebookPixel from './adminFacebookPixel.json';
 import adminFundae from './adminFundae.json';
 import adminMarca from './adminMarca.json';
 import adminMonetizacion from './adminMonetizacion.json';
@@ -66,6 +67,7 @@ export default {
   adminApi,
   adminEngagement,
   adminGhl,
+  adminFacebookPixel,
   adminFundae,
   adminMarca,
   adminMonetizacion,

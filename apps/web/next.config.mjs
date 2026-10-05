@@ -78,7 +78,7 @@ const CSP = (
     "object-src 'none'",
     "form-action 'self'",
     "frame-ancestors 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://connect.facebook.net",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",

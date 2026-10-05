@@ -8,6 +8,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { runAsTenant } from '../tenancy/tenant-context.storage';
 import { TenantResolverService } from '../tenancy/tenant-resolver.service';
+import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
 import { AuthService } from './auth.service';
 import { extractClientContext } from './client-context';
 import {
@@ -35,6 +36,7 @@ export class AuthController {
     private readonly passwordReset: PasswordResetService,
     private readonly tenantResolver: TenantResolverService,
     private readonly signinContext: SigninContextService,
+    private readonly tenantConfig: PrismaTenantConfigService,
   ) {}
 
   /**
@@ -63,12 +65,17 @@ export class AuthController {
     // Logo del tenant (mod.theming) para que las páginas anónimas (signin,
     // registro) muestren la marca del tenant en vez de "Didacta".
     // RLS F2: endpoint público — las lecturas van bajo el ALS del tenant.
-    const [logoUrl, branding] = await runAsTenant(
+    const [logoUrl, branding, fbPixel] = await runAsTenant(
       tenant.id,
       () =>
         Promise.all([
           this.passwordReset.resolveTenantLogoUrl(tenant.id, webBaseUrl),
           this.signinContext.get(tenant.id),
+          // Pixel de Facebook (público) para que la web lo cargue en páginas
+          // anónimas (registro, signin) además de las del alumno.
+          this.tenantConfig
+            .get<{ pixelId?: string }>(tenant.id, 'marketing', 'facebook_pixel')
+            .catch(() => undefined),
         ]),
       { traceLabel: 'tenant-context' },
     );
@@ -85,6 +92,7 @@ export class AuthController {
         brandSaturation: branding.brandSaturation,
         stats: branding.stats,
         membershipPageActive: branding.membershipPageActive,
+        facebookPixelId: fbPixel?.pixelId ?? null,
       },
       host: hostStr ?? null,
     };

@@ -20,12 +20,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/select';
 import { ApiHttpError } from '@/lib/api-client';
+import { trackRegistration } from '@/lib/facebook-pixel';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
+import { useTenantContext } from '@/lib/tenant-context';
 import { COUNTRIES, DEFAULT_COUNTRY_ISO, flagEmoji, registro } from '@/lib/auth-registro';
 
 export function RegistroForm(): React.JSX.Element {
   const t = useTranslations('auth');
   const tErrors = useTranslations('errors');
+  const { tenant } = useTenantContext();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -62,6 +65,14 @@ export function RegistroForm(): React.JSX.Element {
         firstName: first,
         lastName: last,
         phone: `${dial}${digits}`,
+      });
+      // Pixel de Facebook: "quién se registró" (advanced matching con los datos
+      // recién ingresados). No-op si el tenant no tiene Pixel ID.
+      trackRegistration(tenant?.facebookPixelId, {
+        email: mail,
+        phone: `${dial}${digits}`,
+        firstName: first,
+        lastName: last,
       });
       setDone(true);
     } catch (err) {

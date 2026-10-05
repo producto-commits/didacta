@@ -13,6 +13,7 @@ import { SsoWpModule } from '../sso/wp/wp-sso.module';
 import { AdminAcademyController } from './admin-academy.controller';
 import { AdminApiKeysController } from './admin-api-keys.controller';
 import { AdminGhlController } from './admin-ghl.controller';
+import { AdminFacebookPixelController } from './admin-facebook-pixel.controller';
 import { AdminModulesController } from './admin-modules.controller';
 import { AdminProvisioningController } from './admin-provisioning.controller';
 import { AdminSmtpController } from './admin-smtp.controller';
@@ -83,6 +84,9 @@ import { SupportAccessService } from './support-access.service';
     // GET/PUT/POST test, mismo patrón. Guarda el token con el que Academy llama
     // a GHL sin pasar por n8n (etiquetas de retos, etc.).
     AdminGhlController,
+    // Pixel de Facebook per-tenant (Administración → Facebook Pixel) — GET/PUT.
+    // Guarda el Pixel ID público (sin cifrar); la web lo lee por tenant-context.
+    AdminFacebookPixelController,
     // Cuarto piloto License SDK — gate feat:custom_domains end-to-end.
     CustomDomainsController,
     // Séptimo piloto License SDK — gestión del token SCIM por tenant.

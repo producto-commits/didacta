@@ -37,6 +37,8 @@ export interface TenantPublicInfo {
   stats?: TenantPublicStats;
   /** El tenant tiene /unete activa: solo entonces el login enlaza la membresía. */
   membershipPageActive?: boolean;
+  /** Pixel ID de Facebook del tenant (público). Null = no cargar el pixel. */
+  facebookPixelId?: string | null;
 }
 
 export interface TenantContextResponse {

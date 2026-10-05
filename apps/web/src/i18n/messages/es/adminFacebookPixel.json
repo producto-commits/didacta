@@ -1,0 +1,14 @@
+{
+  "title": "Facebook Pixel",
+  "subtitle": "Pega el ID del Pixel de Facebook de la academia. Con esto medimos las visitas (PageView) y quiénes se registran (CompleteRegistration) para tus campañas.",
+  "notAllowed": "Solo un administrador puede configurar el Pixel de Facebook.",
+  "label": "Pixel ID",
+  "placeholder": "p. ej. 123456789012345",
+  "help": "Lo encontrás en Facebook Events Manager → Orígenes de datos → tu Pixel. Son solo números. Déjalo vacío para desactivarlo.",
+  "invalid": "El Pixel ID debe ser numérico (6-20 dígitos).",
+  "saveButton": "Guardar",
+  "saving": "Guardando…",
+  "saved": "Pixel guardado. Se carga en todas las páginas.",
+  "cleared": "Pixel desactivado.",
+  "saveError": "No se pudo guardar el Pixel."
+}

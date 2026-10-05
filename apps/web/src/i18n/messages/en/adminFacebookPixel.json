@@ -1,0 +1,14 @@
+{
+  "title": "Facebook Pixel",
+  "subtitle": "Paste the academy's Facebook Pixel ID. With this we measure visits (PageView) and who registers (CompleteRegistration) for your campaigns.",
+  "notAllowed": "Only an administrator can configure the Facebook Pixel.",
+  "label": "Pixel ID",
+  "placeholder": "e.g. 123456789012345",
+  "help": "Find it in Facebook Events Manager → Data sources → your Pixel. Numbers only. Leave empty to disable it.",
+  "invalid": "The Pixel ID must be numeric (6-20 digits).",
+  "saveButton": "Save",
+  "saving": "Saving…",
+  "saved": "Pixel saved. It loads on every page.",
+  "cleared": "Pixel disabled.",
+  "saveError": "Could not save the Pixel."
+}

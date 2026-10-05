@@ -8,6 +8,7 @@ import { Inter, Sora, IBM_Plex_Sans } from 'next/font/google';
 import type { ReactNode } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
+import { FacebookPixel } from '@/components/facebook-pixel';
 import { LocaleSync } from '@/components/locale-sync';
 import { TenantThemeProvider } from '@/components/tenant-theme-provider';
 import { TenantTitle } from '@/components/tenant-title';
@@ -71,6 +72,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
          */}
         <NextIntlClientProvider locale={locale} messages={messages}>
           <TenantTitle />
+          {/* Pixel de Facebook del tenant (PageView en todas las páginas). */}
+          <FacebookPixel />
           <TenantThemeProvider>{children}</TenantThemeProvider>
           <LocaleSync />
         </NextIntlClientProvider>
