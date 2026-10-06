@@ -528,6 +528,73 @@ export class AdminUsersService {
     return this.getDetail(tenantId, userId);
   }
 
+  /**
+   * Borrado del usuario (soft-delete). Marca `deletedAt`, lo deja DEACTIVATED y
+   * mata sus sessions. Toda la app filtra `deletedAt: null`, así que desaparece
+   * de listas, login y detalle. No purga filas dependientes a propósito: el
+   * email queda liberado para un alta futura al anonimizarlo, pero se conserva
+   * el histórico (matrículas, auditoría) sin PII activa.
+   */
+  async softDelete(
+    tenantId: string,
+    actorId: string,
+    userId: string,
+    ctx: ClientContext = NO_CTX,
+  ): Promise<{ id: string; deleted: true }> {
+    if (userId === actorId) {
+      throw new BadRequestException({
+        message: 'No puedes eliminar tu propio usuario.',
+        code: 'ADMIN_USER_SELF_DELETE_FORBIDDEN',
+      });
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, tenantId, deletedAt: null },
+    });
+    if (!user)
+      throw new NotFoundException({
+        message: 'Usuario no encontrado.',
+        code: 'ADMIN_USER_NOT_FOUND',
+      });
+
+    const now = new Date();
+    // Email anonimizado para liberar la restricción de unicidad por tenant y no
+    // dejar PII en una fila "borrada" (guarda el original en el audit log).
+    const anonEmail = `deleted+${userId}@deleted.local`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt: now,
+          status: 'DEACTIVATED',
+          email: anonEmail,
+          emailVerified: false,
+          ghlContactId: null,
+          telegramId: null,
+          documentId: null,
+        },
+      });
+      await tx.session.deleteMany({ where: { userId } });
+    });
+
+    this.accountState.invalidateUser(userId);
+    this.accountState.invalidateAllSessions();
+
+    await this.auditLog.record({
+      tenantId,
+      actorId,
+      action: 'admin.user.deleted',
+      resourceType: 'user',
+      resourceId: userId,
+      metadata: { email: user.email, previousStatus: user.status },
+      ip: ctx.ip ?? undefined,
+      userAgent: ctx.userAgent ?? undefined,
+    });
+
+    return { id: userId, deleted: true };
+  }
+
   async assignRole(
     tenantId: string,
     actorId: string,

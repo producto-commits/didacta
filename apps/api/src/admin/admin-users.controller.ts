@@ -6,6 +6,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -199,6 +200,20 @@ export class AdminUsersController {
   ) {
     const u = requireAdmin(user);
     return this.service.setStatus(u.tenantId, u.sub, id, dto.status, extractClientContext(req));
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary:
+      'Elimina el usuario (soft-delete): lo marca borrado, anonimiza su email, mata sus sessions. Irreversible desde la UI.',
+  })
+  async remove(
+    @Req() req: FastifyRequest,
+    @CurrentUser() user: SessionClaims | undefined,
+    @Param('id') id: string,
+  ) {
+    const u = requireAdmin(user);
+    return this.service.softDelete(u.tenantId, u.sub, id, extractClientContext(req));
   }
 
   @Post(':id/roles')

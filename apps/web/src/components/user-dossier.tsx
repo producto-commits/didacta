@@ -6,6 +6,7 @@
  */
 
 import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1032,6 +1033,7 @@ function MensajesTab({ d }: { d: UserDossier }) {
 function AccesoTab({ d, onChanged }: { d: UserDossier; onChanged: () => void }) {
   const t = useTranslations('cuentaComponentes');
   const tErrors = useTranslations('errors');
+  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -1107,8 +1109,29 @@ function AccesoTab({ d, onChanged }: { d: UserDossier; onChanged: () => void }) 
             >
               {t('dossier.resendPassword')}
             </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={busy !== null}
+              onClick={() => {
+                if (!window.confirm(t('dossier.deleteConfirm', { email: d.identity.email })))
+                  return;
+                void run(
+                  'delete',
+                  async () => {
+                    await adminUsersApi.remove(token(), d.identity.id);
+                    router.replace('/admin/usuarios');
+                  },
+                  t('dossier.deletedMsg'),
+                );
+              }}
+              data-testid="delete-user"
+            >
+              {t('dossier.delete')}
+            </Button>
           </div>
           <p className="text-xs text-text-muted">{t('dossier.suspendHint')}</p>
+          <p className="text-xs text-text-muted">{t('dossier.deleteHint')}</p>
           {msg ? <p className="text-sm text-green-700 dark:text-green-400">{msg}</p> : null}
           {err ? (
             <p className="text-sm text-red-600 dark:text-red-400" role="alert">

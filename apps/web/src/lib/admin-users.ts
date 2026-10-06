@@ -98,6 +98,13 @@ export const adminUsersApi = {
       bearer,
     );
   },
+  async remove(bearer: string, id: string): Promise<{ id: string; deleted: true }> {
+    return apiFetch<{ id: string; deleted: true }>(
+      `/api/v1/admin/users/${id}`,
+      { method: 'DELETE' },
+      bearer,
+    );
+  },
   async assignRole(bearer: string, id: string, role: AssignableRole): Promise<UserListItem> {
     return apiFetch<UserListItem>(
       `/api/v1/admin/users/${id}/roles`,
