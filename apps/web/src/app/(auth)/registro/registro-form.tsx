@@ -60,20 +60,26 @@ export function RegistroForm(): React.JSX.Element {
     const dial = COUNTRIES.find((c) => c.iso === countryIso)?.dial ?? '+54';
     setPending(true);
     try {
-      await registro({
+      const res = await registro({
         email: mail,
         firstName: first,
         lastName: last,
         phone: `${dial}${digits}`,
       });
       // Pixel de Facebook: "quién se registró" (advanced matching con los datos
-      // recién ingresados). No-op si el tenant no tiene Pixel ID.
-      trackRegistration(tenant?.facebookPixelId, {
-        email: mail,
-        phone: `${dial}${digits}`,
-        firstName: first,
-        lastName: last,
-      });
+      // recién ingresados). El `eventID` lo genera el servidor y lo compartimos
+      // con el evento de la Conversions API para que Meta deduplique. No-op si
+      // el tenant no tiene Pixel ID.
+      trackRegistration(
+        tenant?.facebookPixelId,
+        {
+          email: mail,
+          phone: `${dial}${digits}`,
+          firstName: first,
+          lastName: last,
+        },
+        res.fbEventId,
+      );
       setDone(true);
     } catch (err) {
       setError(err instanceof ApiHttpError ? apiErrorMessage(err, tErrors) : t('registro.error'));

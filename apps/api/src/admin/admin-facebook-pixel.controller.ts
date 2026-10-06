@@ -33,10 +33,18 @@ const FacebookPixelSchema = z.object({
     .regex(/^[0-9]{6,20}$/, 'El Pixel ID debe ser numérico (6-20 dígitos)')
     .or(z.literal(''))
     .optional(),
+  /**
+   * Token de la Conversions API (System User de Meta). SECRETO. `undefined` =
+   * no tocar; `''` = borrar; cualquier otra cosa = guardar cifrado. Nunca se
+   * devuelve en el GET (solo un booleano `capiConfigured`).
+   */
+  capiToken: z.string().trim().min(20).or(z.literal('')).optional(),
 });
 
 interface FacebookPixelDto {
   pixelId: string | null;
+  /** True si hay token CAPI guardado (el valor nunca se expone). */
+  capiConfigured: boolean;
 }
 
 function requireAdmin(user: SessionClaims | undefined): SessionClaims {
@@ -64,14 +72,20 @@ export class AdminFacebookPixelController {
   constructor(private readonly modules: ModuleContextFactory) {}
 
   @Get()
-  @ApiOperation({ summary: 'Devuelve el Pixel ID de Facebook del tenant (o null).' })
+  @ApiOperation({ summary: 'Devuelve el Pixel ID de Facebook del tenant y si hay token CAPI.' })
   async getCurrent(@CurrentUser() user: SessionClaims | undefined): Promise<FacebookPixelDto> {
     const claims = requireAdmin(user);
-    return { pixelId: await this.readPixelId(claims.tenantId) };
+    return {
+      pixelId: await this.readPixelId(claims.tenantId),
+      capiConfigured: await this.readCapiConfigured(claims.tenantId),
+    };
   }
 
   @Put()
-  @ApiOperation({ summary: 'Guarda (o borra, si viene vacío) el Pixel ID de Facebook del tenant.' })
+  @ApiOperation({
+    summary:
+      'Guarda (o borra, si viene vacío) el Pixel ID. `capiToken` opcional: undefined = no tocar, "" = borrar, otro = guardar cifrado.',
+  })
   async upsert(
     @CurrentUser() user: SessionClaims | undefined,
     @Body(new ZodValidationPipe(FacebookPixelSchema)) body: z.infer<typeof FacebookPixelSchema>,
@@ -90,7 +104,29 @@ export class AdminFacebookPixelController {
     } else {
       await config.delete(claims.tenantId, 'marketing', 'facebook_pixel', { actorId: claims.sub });
     }
-    return { pixelId: pixelId || null };
+
+    // Token CAPI: solo se toca si viene en el body. Se guarda CIFRADO.
+    if (body.capiToken !== undefined) {
+      const token = body.capiToken.trim();
+      if (token) {
+        await config.set(
+          claims.tenantId,
+          'marketing',
+          'facebook_capi_token',
+          { token },
+          { isSecret: true, actorId: claims.sub },
+        );
+      } else {
+        await config.delete(claims.tenantId, 'marketing', 'facebook_capi_token', {
+          actorId: claims.sub,
+        });
+      }
+    }
+
+    return {
+      pixelId: pixelId || null,
+      capiConfigured: await this.readCapiConfigured(claims.tenantId),
+    };
   }
 
   private async readPixelId(tenantId: string): Promise<string | null> {
@@ -99,5 +135,13 @@ export class AdminFacebookPixelController {
       .get(tenantId, 'marketing', 'facebook_pixel')
       .catch(() => undefined)) as { pixelId?: string } | undefined;
     return value?.pixelId ?? null;
+  }
+
+  private async readCapiConfigured(tenantId: string): Promise<boolean> {
+    const value = (await this.modules
+      .getTenantConfig()
+      .get(tenantId, 'marketing', 'facebook_capi_token')
+      .catch(() => undefined)) as { token?: string } | undefined;
+    return Boolean(value?.token);
   }
 }

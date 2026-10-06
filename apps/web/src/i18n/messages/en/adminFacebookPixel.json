@@ -10,5 +10,11 @@
   "saving": "Saving…",
   "saved": "Pixel saved. It loads on every page.",
   "cleared": "Pixel disabled.",
-  "saveError": "Could not save the Pixel."
+  "saveError": "Could not save the Pixel.",
+  "capiLabel": "Conversions API token (registration)",
+  "capiConfigured": "✓ configured",
+  "capiPlaceholder": "Paste Meta's EAAS… token",
+  "capiPlaceholderSet": "Already configured — paste a new one to replace it",
+  "capiHelp": "Optional but recommended: with this token the registration is also sent server-side (Conversions API), so Meta counts it even if the browser blocks the pixel. Stored encrypted and never shown again. Leave empty to keep the current one.",
+  "capiInvalid": "The CAPI token looks too short."
 }

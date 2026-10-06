@@ -15,6 +15,8 @@ import { authStorage } from './auth-storage';
 
 export interface AdminFacebookPixelDto {
   pixelId: string | null;
+  /** True si hay token CAPI guardado (el valor nunca viaja al cliente). */
+  capiConfigured: boolean;
 }
 
 function withAuth(): string {
@@ -32,10 +34,17 @@ export const adminFacebookPixelApi = {
       withAuth(),
     );
   },
-  async save(pixelId: string): Promise<AdminFacebookPixelDto> {
+  /**
+   * Guarda el Pixel ID y, opcionalmente, el token CAPI. `capiToken`:
+   * `undefined` = no tocar, `''` = borrar, otro = guardar cifrado.
+   */
+  async save(pixelId: string, capiToken?: string): Promise<AdminFacebookPixelDto> {
     return apiFetch<AdminFacebookPixelDto>(
       '/api/v1/admin/tenant-settings/facebook-pixel',
-      { method: 'PUT', body: JSON.stringify({ pixelId }) },
+      {
+        method: 'PUT',
+        body: JSON.stringify({ pixelId, ...(capiToken !== undefined ? { capiToken } : {}) }),
+      },
       withAuth(),
     );
   },

@@ -20,8 +20,10 @@ export interface RegistroPayload {
   phone: string;
 }
 
-export async function registro(payload: RegistroPayload): Promise<{ ok: true }> {
-  return apiFetch<{ ok: true }>('/api/v1/auth/registro', {
+export async function registro(
+  payload: RegistroPayload,
+): Promise<{ ok: true; fbEventId?: string }> {
+  return apiFetch<{ ok: true; fbEventId?: string }>('/api/v1/auth/registro', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

@@ -5,6 +5,7 @@
 
 import { Module } from '@nestjs/common';
 import { GhlModule } from '../integrations/ghl/ghl.module';
+import { MetaCapiService } from '../integrations/meta/meta-capi.service';
 import { ModulesModule } from '../modules/modules.module';
 import { AuthModule } from './auth.module';
 import { RegistroController } from './registro.controller';
@@ -19,6 +20,6 @@ import { RegistroService } from './registro.service';
 @Module({
   imports: [AuthModule, ModulesModule, GhlModule],
   controllers: [RegistroController],
-  providers: [RegistroService],
+  providers: [RegistroService, MetaCapiService],
 })
 export class RegistroModule {}

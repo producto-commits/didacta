@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: LicenseRef-Didacta-Sustainable-Use
  */
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GhlApiError, GhlClientService } from '../integrations/ghl/ghl-client.service';
+import { MetaCapiService } from '../integrations/meta/meta-capi.service';
 import { PrismaAuditLogService } from '../modules/prisma-audit-log.service';
 import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
 import { ModuleRegistryService } from '../modules/module-registry.service';
@@ -59,6 +60,7 @@ export class RegistroService {
     private readonly config: PrismaTenantConfigService,
     private readonly ghl: GhlClientService,
     private readonly registry: ModuleRegistryService,
+    private readonly metaCapi: MetaCapiService,
   ) {}
 
   async register(
@@ -66,7 +68,7 @@ export class RegistroService {
     dto: RegistroDto,
     webBaseUrl: string,
     ctx: ClientContext = NO_CTX,
-  ): Promise<{ ok: true }> {
+  ): Promise<{ ok: true; fbEventId: string }> {
     if (!tenantId) {
       throw new BadRequestException({
         message: 'No se pudo resolver la academia para este registro.',
@@ -75,6 +77,9 @@ export class RegistroService {
     }
     const name = `${dto.firstName} ${dto.lastName}`.replace(/\s+/g, ' ').trim();
     const phone = normalizePhone(dto.phone);
+    // ID de evento COMPARTIDO con el pixel del navegador: Meta deduplica el
+    // CompleteRegistration (server + cliente) por este `eventID`.
+    const fbEventId = randomUUID();
 
     // Endpoint PÚBLICO (sin middleware de tenant): abrimos el contexto RLS del
     // tenant resuelto por host, si no el `user.create` / lectura de tenant_setting
@@ -101,6 +106,17 @@ export class RegistroService {
           this.logger.warn(`registro: fallo creando contacto en GHL (${dto.email}): ${detail}`);
         }
 
+        // 2) Meta Conversions API (server-side): CompleteRegistration con el
+        //    mismo event_id que el pixel del navegador. Best-effort.
+        await this.sendMetaCapiRegistration(tenantId, fbEventId, webBaseUrl, {
+          email: dto.email,
+          phone,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          clientIp: ctx.ip,
+          userAgent: ctx.userAgent,
+        });
+
         await this.auditLog.record({
           tenantId,
           actorId: userId,
@@ -125,7 +141,49 @@ export class RegistroService {
       { allowPending: true, ttlMinutes: SET_PASSWORD_TTL_MINUTES, asInvitation: true },
     );
 
-    return { ok: true };
+    return { ok: true, fbEventId };
+  }
+
+  /**
+   * Dispara CompleteRegistration por la Conversions API de Meta si el tenant
+   * tiene Pixel ID (marketing/facebook_pixel) y token CAPI
+   * (marketing/facebook_capi_token). Best-effort: cualquier fallo se traga.
+   */
+  private async sendMetaCapiRegistration(
+    tenantId: string,
+    eventId: string,
+    webBaseUrl: string,
+    user: {
+      email: string;
+      phone: string | null;
+      firstName: string;
+      lastName: string;
+      clientIp: string | null;
+      userAgent: string | null;
+    },
+  ): Promise<void> {
+    try {
+      const pixel = (await this.config
+        .get(tenantId, 'marketing', 'facebook_pixel')
+        .catch(() => undefined)) as { pixelId?: string } | undefined;
+      const capi = (await this.config
+        .get(tenantId, 'marketing', 'facebook_capi_token')
+        .catch(() => undefined)) as { token?: string } | undefined;
+      if (!pixel?.pixelId || !capi?.token) return;
+
+      await this.metaCapi.sendEvent({
+        pixelId: pixel.pixelId,
+        token: capi.token,
+        eventId,
+        eventName: 'CompleteRegistration',
+        eventSourceUrl: `${webBaseUrl.replace(/\/$/, '')}/registro`,
+        user,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `registro: Meta CAPI best-effort falló: ${(err as Error).message.slice(0, 200)}`,
+      );
+    }
   }
 
   /** Crea el alumno ACTIVE sin contraseña usable (define la suya por el email). */

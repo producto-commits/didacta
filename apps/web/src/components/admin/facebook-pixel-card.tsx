@@ -30,6 +30,8 @@ export function FacebookPixelCard(): React.JSX.Element {
   const t = useTranslations('adminFacebookPixel');
   const tErrors = useTranslations('errors');
   const [pixelId, setPixelId] = useState('');
+  const [capiToken, setCapiToken] = useState('');
+  const [capiConfigured, setCapiConfigured] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -41,6 +43,7 @@ export function FacebookPixelCard(): React.JSX.Element {
       .then((dto) => {
         if (!cancelled) {
           setPixelId(dto.pixelId ?? '');
+          setCapiConfigured(dto.capiConfigured);
           setLoaded(true);
         }
       })
@@ -60,10 +63,19 @@ export function FacebookPixelCard(): React.JSX.Element {
       setToast({ variant: 'error', message: t('invalid') });
       return;
     }
+    const token = capiToken.trim();
+    if (token && token.length < 20) {
+      setToast({ variant: 'error', message: t('capiInvalid') });
+      return;
+    }
     setSaving(true);
     try {
-      const dto = await adminFacebookPixelApi.save(value);
+      // El token solo se envía si el admin escribió algo (write-only): vacío =
+      // no se toca lo ya guardado.
+      const dto = await adminFacebookPixelApi.save(value, token ? token : undefined);
       setPixelId(dto.pixelId ?? '');
+      setCapiConfigured(dto.capiConfigured);
+      setCapiToken('');
       setToast({ variant: 'success', message: value ? t('saved') : t('cleared') });
     } catch (err) {
       setToast({
@@ -94,6 +106,27 @@ export function FacebookPixelCard(): React.JSX.Element {
               disabled={!loaded}
             />
             <p className="text-xs text-text-subtle">{t('help')}</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="fb-capi-token">
+              {t('capiLabel')}
+              {capiConfigured ? (
+                <span className="ml-2 text-xs font-normal text-success-700">
+                  {t('capiConfigured')}
+                </span>
+              ) : null}
+            </Label>
+            <Input
+              id="fb-capi-token"
+              type="password"
+              autoComplete="off"
+              value={capiToken}
+              onChange={(e) => setCapiToken(e.target.value)}
+              placeholder={capiConfigured ? t('capiPlaceholderSet') : t('capiPlaceholder')}
+              disabled={!loaded}
+            />
+            <p className="text-xs text-text-subtle">{t('capiHelp')}</p>
           </div>
 
           {toast ? (
