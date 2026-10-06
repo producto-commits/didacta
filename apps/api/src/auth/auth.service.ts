@@ -3,14 +3,17 @@
  * SPDX-License-Identifier: LicenseRef-Didacta-Sustainable-Use
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaAuditLogService } from '../modules/prisma-audit-log.service';
 import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
+import { MetaCapiService } from '../integrations/meta/meta-capi.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertSignupsAllowed } from '../tenancy/signup-freeze';
 import { runAsTenant, runSanctionedGlobalAccess } from '../tenancy/tenant-context.storage';
@@ -110,6 +113,8 @@ export interface AuthResult {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
@@ -118,7 +123,53 @@ export class AuthService {
     private readonly mfaPolicy: MfaPolicyService,
     private readonly sessions: SessionRegistryService,
     private readonly tenantConfig: PrismaTenantConfigService,
+    private readonly metaCapi: MetaCapiService,
   ) {}
+
+  /**
+   * Primer ingreso a Academy: dispara el evento "Ingreso" por la Conversions API
+   * de Meta UNA sola vez (cuando `lastLoginAt` venía en null). Server-side y
+   * best-effort — un fallo de Meta nunca rompe el login. Se envuelve en el
+   * contexto de tenant para poder leer el Pixel/token de `tenant_setting`.
+   */
+  private async fireFirstLoginEvent(
+    user: { tenantId: string; email: string; name: string | null },
+    ctx: ClientContext,
+  ): Promise<void> {
+    try {
+      await runAsTenant(
+        user.tenantId,
+        async () => {
+          const pixel = (await this.tenantConfig
+            .get(user.tenantId, 'marketing', 'facebook_pixel')
+            .catch(() => undefined)) as { pixelId?: string } | undefined;
+          const capi = (await this.tenantConfig
+            .get(user.tenantId, 'marketing', 'facebook_capi_token')
+            .catch(() => undefined)) as { token?: string } | undefined;
+          if (!pixel?.pixelId || !capi?.token) return;
+          const parts = (user.name ?? '').trim().split(/\s+/).filter(Boolean);
+          await this.metaCapi.sendEvent({
+            pixelId: pixel.pixelId,
+            token: capi.token,
+            eventId: randomUUID(),
+            eventName: 'Ingreso',
+            user: {
+              email: user.email,
+              firstName: parts[0],
+              lastName: parts.length > 1 ? parts.slice(1).join(' ') : undefined,
+              clientIp: ctx.ip,
+              userAgent: ctx.userAgent,
+            },
+          });
+        },
+        { traceLabel: 'fb-ingreso' },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Ingreso Meta CAPI best-effort falló: ${(err as Error).message.slice(0, 200)}`,
+      );
+    }
+  }
 
   async signup(
     dto: SignupDto,
@@ -349,10 +400,17 @@ export class AuthService {
       });
     }
 
+    const isFirstLogin = user.lastLoginAt === null;
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+    if (isFirstLogin) {
+      await this.fireFirstLoginEvent(
+        { tenantId: tenant.id, email: user.email, name: user.name },
+        ctx,
+      );
+    }
 
     const roles = user.roles.map((r: { role: { name: string } }) => r.role.name);
     const mfaRequired = this.shouldRequireMfa(roles, user.mfaEnabled);
@@ -523,10 +581,14 @@ export class AuthService {
         // Con MFA no auto-logueamos: el usuario pasa por el login normal.
         if (mfaRequired || policyOutcome.outcome === 'block') return null;
 
+        const isFirstLogin = user.lastLoginAt === null;
         await this.prisma.user.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() },
         });
+        if (isFirstLogin) {
+          await this.fireFirstLoginEvent({ tenantId, email: user.email, name: user.name }, ctx);
+        }
 
         const tokens = await this.sessions.issue(
           { sub: user.id, tenantId, roles, mfaVerified: true },

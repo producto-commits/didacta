@@ -6,6 +6,7 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LicenseService } from '@didacta/license-sdk';
+import { MetaModule } from '../integrations/meta/meta.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { PrismaAuditLogService } from '../modules/prisma-audit-log.service';
 import { PrismaInstanceConfigService } from '../modules/prisma-instance-config.service';
@@ -55,6 +56,7 @@ function loadCipherKeyForAuth(): string {
 }
 
 @Module({
+  imports: [MetaModule],
   controllers: [
     AuthController,
     MfaController,
