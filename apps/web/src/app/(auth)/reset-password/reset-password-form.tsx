@@ -82,9 +82,13 @@ export function ResetPasswordForm() {
         authStorage.saveSession({ user: res.user, mfaRequired: res.mfaRequired ?? false }, true);
         invalidateCommunitySpacesCache();
         requestThemeRefresh();
-        // Propagamos las UTM (que llegaron en el link del email) al destino, para
-        // no perder la atribución de campaña en el login/aterrizaje.
-        const dest = res.user.onboardingCompletedAt === null ? '/onboarding' : '/';
+        // Destino: `next` del link (p. ej. el curso del registro) si es una ruta
+        // interna segura; si no, onboarding (si falta) o la home. Propagamos las
+        // UTM para no perder la atribución en el login/aterrizaje.
+        const rawNext = searchParams?.get('next') ?? '';
+        const safeNext = /^\/(?!\/)/.test(rawNext) ? rawNext : '';
+        const fallback = res.user.onboardingCompletedAt === null ? '/onboarding' : '/';
+        const dest = safeNext || fallback;
         router.push(appendUtms(dest, readUtms(window.location.search)));
         return;
       }
