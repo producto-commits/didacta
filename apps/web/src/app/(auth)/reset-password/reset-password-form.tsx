@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { ApiHttpError, apiFetch } from '@/lib/api-client';
 import { authStorage, type StoredSession } from '@/lib/auth-storage';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
+import { appendUtms, readUtms } from '@/lib/utm';
 import { requestThemeRefresh } from '@/lib/theming';
 import { invalidateCommunitySpacesCache } from '@/modules/community';
 
@@ -75,7 +76,10 @@ export function ResetPasswordForm() {
         authStorage.saveSession({ user: res.user, mfaRequired: res.mfaRequired ?? false }, true);
         invalidateCommunitySpacesCache();
         requestThemeRefresh();
-        router.push(res.user.onboardingCompletedAt === null ? '/onboarding' : '/');
+        // Propagamos las UTM (que llegaron en el link del email) al destino, para
+        // no perder la atribución de campaña en el login/aterrizaje.
+        const dest = res.user.onboardingCompletedAt === null ? '/onboarding' : '/';
+        router.push(appendUtms(dest, readUtms(window.location.search)));
         return;
       }
       setDone(true);

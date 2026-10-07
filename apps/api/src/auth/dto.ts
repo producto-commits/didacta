@@ -36,6 +36,16 @@ export const registroSchema = z.object({
     .min(6)
     .max(25)
     .regex(/^\+?[0-9\s-]{6,25}$/, 'Teléfono inválido'),
+  /**
+   * Parámetros de atribución (UTM + click ids) presentes en la URL de `/registro`.
+   * El servidor los re-inyecta en el link del email para no perder la campaña en
+   * los pasos posteriores (fijar contraseña, login). Claves conocidas se filtran
+   * en el service; se acotan en número y longitud para no abusar del payload.
+   */
+  utm: z
+    .record(z.string().max(500))
+    .refine((o) => Object.keys(o).length <= 15, 'Demasiados parámetros')
+    .optional(),
 });
 export type RegistroDto = z.infer<typeof registroSchema>;
 

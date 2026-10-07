@@ -406,7 +406,13 @@ export class PasswordResetService {
     // su propio copy (bienvenida, pasos para entrar) porque no es lo mismo que
     // un "olvidé mi contraseña" que el usuario acaba de pedir. Compartir el
     // copy obligaba a que un reset sonara a bienvenida.
-    opts: { allowPending?: boolean; ttlMinutes?: number; asInvitation?: boolean } = {},
+    opts: {
+      allowPending?: boolean;
+      ttlMinutes?: number;
+      asInvitation?: boolean;
+      /** Query string (ya URL-encoded) a añadir al link, p. ej. UTM de captación. */
+      linkQuery?: string;
+    } = {},
   ): Promise<void> {
     const result = await this.request(args, ctx, opts);
     if (!result) return;
@@ -432,8 +438,15 @@ export class PasswordResetService {
     },
     toEmail: string,
     webBaseUrl: string,
-    opts: { allowPending?: boolean; ttlMinutes?: number; asInvitation?: boolean },
+    opts: {
+      allowPending?: boolean;
+      ttlMinutes?: number;
+      asInvitation?: boolean;
+      linkQuery?: string;
+    },
   ): Promise<void> {
+    // Sufijo de atribución (UTM): el token ya introduce `?`, así que va con `&`.
+    const linkSuffix = opts.linkQuery ? `&${opts.linkQuery}` : '';
     // Webhook de enlace con GoHighLevel (n8n): cuando esto es una INVITACIÓN
     // (no un "olvidé mi contraseña"), avisamos a n8n con el enlace mágico y los
     // IDs de GHL para que el CRM entregue el link al contacto. Va ANTES del
@@ -443,7 +456,7 @@ export class PasswordResetService {
     if (opts.asInvitation) {
       const setPasswordUrl = `${webBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(
         result.rawToken,
-      )}`;
+      )}${linkSuffix}`;
       void this.notifySetPasswordLinkWebhook({
         event: 'auth.set_password_link',
         email: toEmail,
@@ -523,7 +536,7 @@ export class PasswordResetService {
     const { subject, html, text } = opts.asInvitation
       ? invitationEmailHtml(branding, {
           greeting: emailGreeting(result.userName, result.locale),
-          resetUrl: `${webBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(result.rawToken)}`,
+          resetUrl: `${webBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(result.rawToken)}${linkSuffix}`,
           validezDias: Math.max(1, Math.round((opts.ttlMinutes ?? 60) / (60 * 24))),
           locale: result.locale,
         })

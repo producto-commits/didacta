@@ -22,6 +22,7 @@ import { NativeSelect } from '@/components/ui/select';
 import { ApiHttpError } from '@/lib/api-client';
 import { authStorage } from '@/lib/auth-storage';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
+import { appendUtms, readUtms } from '@/lib/utm';
 import {
   COUNTRIES,
   DEFAULT_COUNTRY_ISO,
@@ -64,11 +65,15 @@ export function RegistroForm(): React.JSX.Element {
     const dial = COUNTRIES.find((c) => c.iso === countryIso)?.dial ?? '+54';
     setPending(true);
     try {
+      // UTM de la URL de registro: se mandan al backend (reinyecta en el email)
+      // y se reenvían a la página de Dropi para no perder la atribución.
+      const utms = readUtms();
       const res = await registro({
         email: mail,
         firstName: first,
         lastName: last,
         phone: `${dial}${digits}`,
+        utm: Object.keys(utms).length ? utms : undefined,
       });
       // Captación: si el backend auto-logueó (alumno nuevo), guardamos la sesión
       // IGUAL que el login y mandamos a la persona, en la MISMA pestaña, a la
@@ -86,7 +91,7 @@ export function RegistroForm(): React.JSX.Element {
           { user: res.session.user, mfaRequired: res.session.mfaRequired },
           true,
         );
-        window.location.assign(DROPI_BIENVENIDA_URL);
+        window.location.assign(appendUtms(DROPI_BIENVENIDA_URL, utms));
         return;
       }
       setDone(true);

@@ -14,6 +14,7 @@ import { ModuleRegistryService } from '../modules/module-registry.service';
 import { runAsTenant } from '../tenancy/tenant-context.storage';
 import type { ClientContext } from './client-context';
 import type { RegistroDto } from './dto';
+import { buildUtmQuery } from './utm';
 import { PasswordResetService } from './password-reset.service';
 import { PasswordService } from './password.service';
 
@@ -123,12 +124,19 @@ export class RegistroService {
 
     // Email con enlace para fijar contraseña (copy de invitación/bienvenida). Se
     // envía SIEMPRE (nuevo o existente) — es la puerta de entrada para volver a
-    // loguearse más adelante. Se auto-escopa al tenant por dentro.
+    // loguearse más adelante. Se auto-escopa al tenant por dentro. Las UTM de la
+    // URL de registro se re-inyectan en el link para no perder la atribución de
+    // campaña al fijar contraseña / loguearse desde el correo.
     await this.passwordReset.requestAndSendEmail(
       { email: dto.email, resolvedTenantId: tenantId },
       webBaseUrl,
       ctx,
-      { allowPending: true, ttlMinutes: SET_PASSWORD_TTL_MINUTES, asInvitation: true },
+      {
+        allowPending: true,
+        ttlMinutes: SET_PASSWORD_TTL_MINUTES,
+        asInvitation: true,
+        linkQuery: buildUtmQuery(dto.utm),
+      },
     );
 
     // Auto-login para el flujo de captación: el form redirige a la página de

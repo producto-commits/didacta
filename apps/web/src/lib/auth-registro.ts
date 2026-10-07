@@ -19,6 +19,8 @@ export interface RegistroPayload {
   lastName: string;
   /** E.164 con indicativo, ej. `+543001234567`. */
   phone: string;
+  /** UTM/click ids capturados en la URL de registro (atribución de campaña). */
+  utm?: Record<string, string>;
 }
 
 /**
