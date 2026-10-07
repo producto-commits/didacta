@@ -265,9 +265,16 @@ export class PasswordResetService {
         ghlContactId: true,
         ghlLocationId: true,
         passwordSetAt: true,
+        registrationSource: true,
       },
     });
-    const activarInvitado = owner?.status === 'PENDING' && owner.passwordHash === null;
+    // Activamos al fijar contraseña si: es una invitación clásica (PENDING sin
+    // hash) O es un alumno del LINK PÚBLICO de captación (self_registro) que
+    // quedó PENDING — ese flujo no tiene aprobación, debe entrar al crear su
+    // contraseña. Un token de reset válido prueba la propiedad del correo.
+    const activarInvitado =
+      owner?.status === 'PENDING' &&
+      (owner.passwordHash === null || owner.registrationSource === 'self_registro');
     // Primera vez = el usuario nunca había definido su contraseña.
     const firstTime = owner != null && owner.passwordSetAt === null;
 

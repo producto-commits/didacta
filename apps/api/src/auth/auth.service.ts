@@ -368,6 +368,9 @@ export class AuthService {
       include: { roles: { include: { role: true } }, tenant: true },
     });
     if (!user || !user.passwordHash || user.status !== 'ACTIVE') {
+      this.logger.warn(
+        `signin 401: found=${!!user} hasPwd=${!!user?.passwordHash} status=${user?.status ?? 'n/a'} email=${dto.email} tenant=${tenant.slug}`,
+      );
       await this.auditLog.record({
         tenantId: tenant.id,
         actorId: null,
@@ -386,6 +389,7 @@ export class AuthService {
 
     const valid = await this.passwords.verify(user.passwordHash, dto.password);
     if (!valid) {
+      this.logger.warn(`signin 401: bad_password email=${dto.email} tenant=${tenant.slug}`);
       await this.auditLog.record({
         tenantId: tenant.id,
         actorId: user.id,
@@ -574,7 +578,12 @@ export class AuthService {
           where: { id: userId },
           include: { roles: { include: { role: true } }, tenant: true },
         });
-        if (!user || user.status !== 'ACTIVE') return null;
+        if (!user || user.status !== 'ACTIVE') {
+          this.logger.warn(
+            `issueSessionForUser null: found=${!!user} status=${user?.status ?? 'n/a'} user=${userId}`,
+          );
+          return null;
+        }
         const roles = user.roles.map((r: { role: { name: string } }) => r.role.name);
         const mfaRequired = this.shouldRequireMfa(roles, user.mfaEnabled);
         const policyOutcome = await this.mfaPolicy.evaluateLoginPolicy(tenantId, {
@@ -582,7 +591,12 @@ export class AuthService {
           roles,
         });
         // Con MFA no auto-logueamos: el usuario pasa por el login normal.
-        if (mfaRequired || policyOutcome.outcome === 'block') return null;
+        if (mfaRequired || policyOutcome.outcome === 'block') {
+          this.logger.warn(
+            `issueSessionForUser null: mfaRequired=${mfaRequired} policy=${policyOutcome.outcome} roles=${roles.join(',')} user=${userId}`,
+          );
+          return null;
+        }
 
         const isFirstLogin = user.lastLoginAt === null;
         await this.prisma.user.update({
