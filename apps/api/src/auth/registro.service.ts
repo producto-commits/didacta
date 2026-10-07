@@ -7,7 +7,6 @@ import { randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GhlApiError, GhlClientService } from '../integrations/ghl/ghl-client.service';
-import { AuthService, type AuthResult } from './auth.service';
 import { PrismaAuditLogService } from '../modules/prisma-audit-log.service';
 import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
 import { ModuleRegistryService } from '../modules/module-registry.service';
@@ -61,7 +60,6 @@ export class RegistroService {
     private readonly config: PrismaTenantConfigService,
     private readonly ghl: GhlClientService,
     private readonly registry: ModuleRegistryService,
-    private readonly auth: AuthService,
   ) {}
 
   async register(
@@ -69,7 +67,7 @@ export class RegistroService {
     dto: RegistroDto,
     webBaseUrl: string,
     ctx: ClientContext = NO_CTX,
-  ): Promise<{ ok: true; session: AuthResult | null }> {
+  ): Promise<{ ok: true }> {
     if (!tenantId) {
       throw new BadRequestException({
         message: 'No se pudo resolver la academia para este registro.',
@@ -139,15 +137,13 @@ export class RegistroService {
       },
     );
 
-    // Auto-login para el flujo de captación: el form redirige a la página de
-    // bienvenida de Dropi (que avisa a Meta del registro) y de ahí vuelve a
-    // Academy; con la sesión ya guardada el alumno cae dentro, en el curso, sin
-    // re-loguearse. SOLO si lo acabamos de crear: nunca damos sesión sobre una
-    // cuenta ya existente (sería tomarla con solo el email). Meta "Ingreso"
-    // (primer login) lo dispara issueSessionForUser por dentro.
-    const session = created ? await this.auth.issueSessionForUser(userId, tenantId, ctx) : null;
-
-    return { ok: true, session };
+    // NO auto-login: el alumno entra fijando su contraseña desde el enlace del
+    // email (esa es la puerta de entrada). Auto-loguear con solo el correo sería
+    // acceso directo sin contraseña y además tomable. El form redirige igual a
+    // la página de bienvenida de Dropi (que avisa a Meta del registro); al volver
+    // NO está logueado y usa el email para entrar. El evento Meta "Ingreso"
+    // (primer login) se dispara cuando fija la contraseña y entra.
+    return { ok: true };
   }
 
   /** Crea el alumno ACTIVE sin contraseña usable (define la suya por el email). */

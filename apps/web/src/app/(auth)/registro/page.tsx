@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: LicenseRef-Didacta-Sustainable-Use
  */
 
+import { Suspense } from 'react';
 import { getTranslations } from 'next-intl/server';
 import { RegistroForm } from './registro-form';
 import { AuthHeading } from '../auth-heading';
@@ -19,7 +20,9 @@ export default async function RegistroPage() {
   return (
     <>
       <AuthHeading title={t('registro.title')} description={t('registro.description')} />
-      <RegistroForm />
+      <Suspense fallback={null}>
+        <RegistroForm />
+      </Suspense>
     </>
   );
 }

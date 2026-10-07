@@ -14,13 +14,13 @@
  */
 
 import { useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/select';
 import { ApiHttpError } from '@/lib/api-client';
-import { authStorage } from '@/lib/auth-storage';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
 import { appendUtms, readUtms } from '@/lib/utm';
 import {
@@ -41,7 +41,11 @@ export function RegistroForm(): React.JSX.Element {
   const [phone, setPhone] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  // "revisa tu correo": se muestra al VOLVER de la página de bienvenida de Dropi
+  // (configurada para regresar con `?enviado=1`). El registro redirige a Dropi,
+  // así que esta pantalla es el aterrizaje de vuelta, no un estado tras enviar.
+  const searchParams = useSearchParams();
+  const done = searchParams?.get('enviado') === '1';
 
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -68,33 +72,19 @@ export function RegistroForm(): React.JSX.Element {
       // UTM de la URL de registro: se mandan al backend (reinyecta en el email)
       // y se reenvían a la página de Dropi para no perder la atribución.
       const utms = readUtms();
-      const res = await registro({
+      await registro({
         email: mail,
         firstName: first,
         lastName: last,
         phone: `${dial}${digits}`,
         utm: Object.keys(utms).length ? utms : undefined,
       });
-      // Captación: si el backend auto-logueó (alumno nuevo), guardamos la sesión
-      // IGUAL que el login y mandamos a la persona, en la MISMA pestaña, a la
-      // página de bienvenida de Dropi (que avisa a Meta del registro y devuelve a
-      // Academy). Al volver, con la sesión ya en storage, cae dentro del curso
-      // sin re-loguearse. Si no hubo sesión (correo ya existente), caemos al
-      // aviso de "revisa tu correo".
-      if (res.session) {
-        authStorage.saveTokens(
-          res.session.tokens.accessToken,
-          res.session.tokens.refreshToken,
-          true,
-        );
-        authStorage.saveSession(
-          { user: res.session.user, mfaRequired: res.session.mfaRequired },
-          true,
-        );
-        window.location.assign(appendUtms(DROPI_BIENVENIDA_URL, utms));
-        return;
-      }
-      setDone(true);
+      // SIN auto-login: el alumno entra fijando su contraseña desde el email. Se
+      // le manda, en la MISMA pestaña, a la página de bienvenida de Dropi (que
+      // avisa a Meta del registro); de ahí vuelve a Academy y usa el correo para
+      // entrar. Las UTM viajan en la URL para no perder la atribución.
+      window.location.assign(appendUtms(DROPI_BIENVENIDA_URL, utms));
+      return;
     } catch (err) {
       setError(err instanceof ApiHttpError ? apiErrorMessage(err, tErrors) : t('registro.error'));
     } finally {
@@ -110,7 +100,7 @@ export function RegistroForm(): React.JSX.Element {
         data-testid="registro-done"
       >
         <p className="text-base font-semibold text-success-900">{t('registro.doneTitle')}</p>
-        <p className="mt-2">{t('registro.doneBody', { email: email.trim() })}</p>
+        <p className="mt-2">{t('registro.doneBody')}</p>
         <p className="mt-2 text-success-700">{t('registro.doneHint')}</p>
       </div>
     );

@@ -11,7 +11,6 @@
  */
 
 import { apiFetch } from './api-client';
-import type { StoredSession } from './auth-storage';
 
 export interface RegistroPayload {
   email: string;
@@ -23,21 +22,8 @@ export interface RegistroPayload {
   utm?: Record<string, string>;
 }
 
-/**
- * Sesión emitida por el registro para el auto-login del flujo de captación.
- * Presente SOLO cuando se creó un alumno nuevo (nunca sobre cuenta existente).
- * Mismo shape que el login, para guardarlo igual con `authStorage`.
- */
-export interface RegistroSession {
-  tokens: { accessToken: string; refreshToken: string };
-  user: StoredSession['user'];
-  mfaRequired: boolean;
-}
-
-export async function registro(
-  payload: RegistroPayload,
-): Promise<{ ok: true; session: RegistroSession | null }> {
-  return apiFetch<{ ok: true; session: RegistroSession | null }>('/api/v1/auth/registro', {
+export async function registro(payload: RegistroPayload): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>('/api/v1/auth/registro', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
