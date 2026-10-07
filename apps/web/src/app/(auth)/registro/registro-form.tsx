@@ -20,15 +20,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/select';
 import { ApiHttpError } from '@/lib/api-client';
-import { trackRegistration } from '@/lib/facebook-pixel';
+import { authStorage } from '@/lib/auth-storage';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
-import { useTenantContext } from '@/lib/tenant-context';
-import { COUNTRIES, DEFAULT_COUNTRY_ISO, flagEmoji, registro } from '@/lib/auth-registro';
+import {
+  COUNTRIES,
+  DEFAULT_COUNTRY_ISO,
+  DROPI_BIENVENIDA_URL,
+  flagEmoji,
+  registro,
+} from '@/lib/auth-registro';
 
 export function RegistroForm(): React.JSX.Element {
   const t = useTranslations('auth');
   const tErrors = useTranslations('errors');
-  const { tenant } = useTenantContext();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -66,20 +70,25 @@ export function RegistroForm(): React.JSX.Element {
         lastName: last,
         phone: `${dial}${digits}`,
       });
-      // Pixel de Facebook: "quién se registró" (advanced matching con los datos
-      // recién ingresados). El `eventID` lo genera el servidor y lo compartimos
-      // con el evento de la Conversions API para que Meta deduplique. No-op si
-      // el tenant no tiene Pixel ID.
-      trackRegistration(
-        tenant?.facebookPixelId,
-        {
-          email: mail,
-          phone: `${dial}${digits}`,
-          firstName: first,
-          lastName: last,
-        },
-        res.fbEventId,
-      );
+      // Captación: si el backend auto-logueó (alumno nuevo), guardamos la sesión
+      // IGUAL que el login y mandamos a la persona, en la MISMA pestaña, a la
+      // página de bienvenida de Dropi (que avisa a Meta del registro y devuelve a
+      // Academy). Al volver, con la sesión ya en storage, cae dentro del curso
+      // sin re-loguearse. Si no hubo sesión (correo ya existente), caemos al
+      // aviso de "revisa tu correo".
+      if (res.session) {
+        authStorage.saveTokens(
+          res.session.tokens.accessToken,
+          res.session.tokens.refreshToken,
+          true,
+        );
+        authStorage.saveSession(
+          { user: res.session.user, mfaRequired: res.session.mfaRequired },
+          true,
+        );
+        window.location.assign(DROPI_BIENVENIDA_URL);
+        return;
+      }
       setDone(true);
     } catch (err) {
       setError(err instanceof ApiHttpError ? apiErrorMessage(err, tErrors) : t('registro.error'));

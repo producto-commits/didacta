@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: LicenseRef-Didacta-Sustainable-Use
  */
 
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GhlApiError, GhlClientService } from '../integrations/ghl/ghl-client.service';
-import { MetaCapiService } from '../integrations/meta/meta-capi.service';
+import { AuthService, type AuthResult } from './auth.service';
 import { PrismaAuditLogService } from '../modules/prisma-audit-log.service';
 import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
 import { ModuleRegistryService } from '../modules/module-registry.service';
@@ -60,7 +60,7 @@ export class RegistroService {
     private readonly config: PrismaTenantConfigService,
     private readonly ghl: GhlClientService,
     private readonly registry: ModuleRegistryService,
-    private readonly metaCapi: MetaCapiService,
+    private readonly auth: AuthService,
   ) {}
 
   async register(
@@ -68,7 +68,7 @@ export class RegistroService {
     dto: RegistroDto,
     webBaseUrl: string,
     ctx: ClientContext = NO_CTX,
-  ): Promise<{ ok: true; fbEventId: string }> {
+  ): Promise<{ ok: true; session: AuthResult | null }> {
     if (!tenantId) {
       throw new BadRequestException({
         message: 'No se pudo resolver la academia para este registro.',
@@ -77,17 +77,18 @@ export class RegistroService {
     }
     const name = `${dto.firstName} ${dto.lastName}`.replace(/\s+/g, ' ').trim();
     const phone = normalizePhone(dto.phone);
-    // ID de evento COMPARTIDO con el pixel del navegador: Meta deduplica el
-    // CompleteRegistration (server + cliente) por este `eventID`.
-    const fbEventId = randomUUID();
 
+    let userId = '';
+    let created = false;
     // Endpoint PÚBLICO (sin middleware de tenant): abrimos el contexto RLS del
     // tenant resuelto por host, si no el `user.create` / lectura de tenant_setting
     // violan la policy (42501). Mismo patrón que `signup`.
     await runAsTenant(
       tenantId,
       async () => {
-        const { userId, created } = await this.findOrCreateUser(tenantId, dto.email, name);
+        const r = await this.findOrCreateUser(tenantId, dto.email, name);
+        userId = r.userId;
+        created = r.created;
 
         // 0) Matricular en el curso de Academy (idempotente, best-effort): sin
         //    esto el alumno entra pero no ve el curso ni sus retos.
@@ -106,17 +107,6 @@ export class RegistroService {
           this.logger.warn(`registro: fallo creando contacto en GHL (${dto.email}): ${detail}`);
         }
 
-        // 2) Meta Conversions API (server-side): CompleteRegistration con el
-        //    mismo event_id que el pixel del navegador. Best-effort.
-        await this.sendMetaCapiRegistration(tenantId, fbEventId, webBaseUrl, {
-          email: dto.email,
-          phone,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          clientIp: ctx.ip,
-          userAgent: ctx.userAgent,
-        });
-
         await this.auditLog.record({
           tenantId,
           actorId: userId,
@@ -131,9 +121,9 @@ export class RegistroService {
       { traceLabel: 'registro' },
     );
 
-    // 2) Email con enlace para fijar contraseña (copy de invitación/bienvenida).
-    //    Se envía SIEMPRE (nuevo o existente) — es la puerta de entrada. Se
-    //    auto-escopa al tenant por dentro (anti-enumeración incluido).
+    // Email con enlace para fijar contraseña (copy de invitación/bienvenida). Se
+    // envía SIEMPRE (nuevo o existente) — es la puerta de entrada para volver a
+    // loguearse más adelante. Se auto-escopa al tenant por dentro.
     await this.passwordReset.requestAndSendEmail(
       { email: dto.email, resolvedTenantId: tenantId },
       webBaseUrl,
@@ -141,49 +131,15 @@ export class RegistroService {
       { allowPending: true, ttlMinutes: SET_PASSWORD_TTL_MINUTES, asInvitation: true },
     );
 
-    return { ok: true, fbEventId };
-  }
+    // Auto-login para el flujo de captación: el form redirige a la página de
+    // bienvenida de Dropi (que avisa a Meta del registro) y de ahí vuelve a
+    // Academy; con la sesión ya guardada el alumno cae dentro, en el curso, sin
+    // re-loguearse. SOLO si lo acabamos de crear: nunca damos sesión sobre una
+    // cuenta ya existente (sería tomarla con solo el email). Meta "Ingreso"
+    // (primer login) lo dispara issueSessionForUser por dentro.
+    const session = created ? await this.auth.issueSessionForUser(userId, tenantId, ctx) : null;
 
-  /**
-   * Dispara CompleteRegistration por la Conversions API de Meta si el tenant
-   * tiene Pixel ID (marketing/facebook_pixel) y token CAPI
-   * (marketing/facebook_capi_token). Best-effort: cualquier fallo se traga.
-   */
-  private async sendMetaCapiRegistration(
-    tenantId: string,
-    eventId: string,
-    webBaseUrl: string,
-    user: {
-      email: string;
-      phone: string | null;
-      firstName: string;
-      lastName: string;
-      clientIp: string | null;
-      userAgent: string | null;
-    },
-  ): Promise<void> {
-    try {
-      const pixel = (await this.config
-        .get(tenantId, 'marketing', 'facebook_pixel')
-        .catch(() => undefined)) as { pixelId?: string } | undefined;
-      const capi = (await this.config
-        .get(tenantId, 'marketing', 'facebook_capi_token')
-        .catch(() => undefined)) as { token?: string } | undefined;
-      if (!pixel?.pixelId || !capi?.token) return;
-
-      await this.metaCapi.sendEvent({
-        pixelId: pixel.pixelId,
-        token: capi.token,
-        eventId,
-        eventName: 'CompleteRegistration',
-        eventSourceUrl: `${webBaseUrl.replace(/\/$/, '')}/registro`,
-        user,
-      });
-    } catch (err) {
-      this.logger.warn(
-        `registro: Meta CAPI best-effort falló: ${(err as Error).message.slice(0, 200)}`,
-      );
-    }
+    return { ok: true, session };
   }
 
   /** Crea el alumno ACTIVE sin contraseña usable (define la suya por el email). */
@@ -214,6 +170,12 @@ export class RegistroService {
             // Origen = link público → habilita la misión de bienvenida "Regístrate
             // en Dropi" (los de inscribe/GHL no la ven).
             registrationSource: 'self_registro',
+            // Captación sin fricción: el alumno que llega por el link entra
+            // DIRECTO al curso tras el registro (ver flujo de redirección a la
+            // página de bienvenida de Dropi). Pre-completamos los gates del shell
+            // (onboarding de foto/nombre y perfilamiento) para no desviarlo.
+            onboardingCompletedAt: new Date(),
+            perfilCompletadoAt: new Date(),
           },
         });
         if (role) await tx.userRole.create({ data: { userId: created.id, roleId: role.id } });

@@ -11,6 +11,7 @@
  */
 
 import { apiFetch } from './api-client';
+import type { StoredSession } from './auth-storage';
 
 export interface RegistroPayload {
   email: string;
@@ -20,14 +21,31 @@ export interface RegistroPayload {
   phone: string;
 }
 
+/**
+ * Sesión emitida por el registro para el auto-login del flujo de captación.
+ * Presente SOLO cuando se creó un alumno nuevo (nunca sobre cuenta existente).
+ * Mismo shape que el login, para guardarlo igual con `authStorage`.
+ */
+export interface RegistroSession {
+  tokens: { accessToken: string; refreshToken: string };
+  user: StoredSession['user'];
+  mfaRequired: boolean;
+}
+
 export async function registro(
   payload: RegistroPayload,
-): Promise<{ ok: true; fbEventId?: string }> {
-  return apiFetch<{ ok: true; fbEventId?: string }>('/api/v1/auth/registro', {
+): Promise<{ ok: true; session: RegistroSession | null }> {
+  return apiFetch<{ ok: true; session: RegistroSession | null }>('/api/v1/auth/registro', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
+
+/**
+ * Página de Dropi que avisa a Meta del registro y devuelve a la persona a
+ * Academy. El form redirige aquí (misma pestaña) tras un registro con éxito.
+ */
+export const DROPI_BIENVENIDA_URL = 'https://dropi.co/ar/curso-dropshipping-bienvenida';
 
 /**
  * Indicativos para el selector de país del teléfono. Lista corta centrada en
