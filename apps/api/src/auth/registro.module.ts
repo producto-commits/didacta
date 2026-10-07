@@ -5,6 +5,7 @@
 
 import { Module } from '@nestjs/common';
 import { GhlModule } from '../integrations/ghl/ghl.module';
+import { MetaModule } from '../integrations/meta/meta.module';
 import { ModulesModule } from '../modules/modules.module';
 import { AuthModule } from './auth.module';
 import { RegistroController } from './registro.controller';
@@ -17,7 +18,7 @@ import { RegistroService } from './registro.service';
  * SIN crear el ciclo Auth↔Modules.
  */
 @Module({
-  imports: [AuthModule, ModulesModule, GhlModule],
+  imports: [AuthModule, ModulesModule, GhlModule, MetaModule],
   controllers: [RegistroController],
   providers: [RegistroService],
 })

@@ -14,7 +14,6 @@
  */
 
 import { useState, type FormEvent } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,18 +21,15 @@ import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/select';
 import { ApiHttpError } from '@/lib/api-client';
 import { apiErrorMessage } from '@/lib/i18n/api-error';
-import { appendUtms, readUtms } from '@/lib/utm';
-import {
-  COUNTRIES,
-  DEFAULT_COUNTRY_ISO,
-  DROPI_BIENVENIDA_URL,
-  flagEmoji,
-  registro,
-} from '@/lib/auth-registro';
+import { trackRegistration } from '@/lib/facebook-pixel';
+import { useTenantContext } from '@/lib/tenant-context';
+import { readUtms } from '@/lib/utm';
+import { COUNTRIES, DEFAULT_COUNTRY_ISO, flagEmoji, registro } from '@/lib/auth-registro';
 
 export function RegistroForm(): React.JSX.Element {
   const t = useTranslations('auth');
   const tErrors = useTranslations('errors');
+  const { tenant } = useTenantContext();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -41,11 +37,8 @@ export function RegistroForm(): React.JSX.Element {
   const [phone, setPhone] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // "revisa tu correo": se muestra al VOLVER de la página de bienvenida de Dropi
-  // (configurada para regresar con `?enviado=1`). El registro redirige a Dropi,
-  // así que esta pantalla es el aterrizaje de vuelta, no un estado tras enviar.
-  const searchParams = useSearchParams();
-  const done = searchParams?.get('enviado') === '1';
+  // "revisa tu correo": se muestra en el acto tras registrar con éxito.
+  const [done, setDone] = useState(false);
 
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -69,22 +62,28 @@ export function RegistroForm(): React.JSX.Element {
     const dial = COUNTRIES.find((c) => c.iso === countryIso)?.dial ?? '+54';
     setPending(true);
     try {
-      // UTM de la URL de registro: se mandan al backend (reinyecta en el email)
-      // y se reenvían a la página de Dropi para no perder la atribución.
+      // UTM de la URL de registro: se mandan al backend para que las reinyecte
+      // en el link del correo (no perder la atribución al fijar contraseña).
       const utms = readUtms();
-      await registro({
+      const res = await registro({
         email: mail,
         firstName: first,
         lastName: last,
         phone: `${dial}${digits}`,
         utm: Object.keys(utms).length ? utms : undefined,
       });
-      // SIN auto-login: el alumno entra fijando su contraseña desde el email. Se
-      // le manda, en la MISMA pestaña, a la página de bienvenida de Dropi (que
-      // avisa a Meta del registro); de ahí vuelve a Academy y usa el correo para
-      // entrar. Las UTM viajan en la URL para no perder la atribución.
-      window.location.assign(appendUtms(DROPI_BIENVENIDA_URL, utms));
-      return;
+      // Meta: CompleteRegistration desde el navegador (advanced matching con los
+      // datos recién ingresados; el `fbclid` de la URL lo captó el pixel al
+      // cargar). El `eventID` lo genera el servidor y lo compartimos con el
+      // evento server-side (Conversions API) para que Meta deduplique.
+      trackRegistration(
+        tenant?.facebookPixelId,
+        { email: mail, phone: `${dial}${digits}`, firstName: first, lastName: last },
+        res.fbEventId,
+      );
+      // SIN auto-login ni rebote a Dropi: mostramos "revisa tu correo". El alumno
+      // entra fijando su contraseña desde el enlace del email.
+      setDone(true);
     } catch (err) {
       setError(err instanceof ApiHttpError ? apiErrorMessage(err, tErrors) : t('registro.error'));
     } finally {
@@ -100,7 +99,7 @@ export function RegistroForm(): React.JSX.Element {
         data-testid="registro-done"
       >
         <p className="text-base font-semibold text-success-900">{t('registro.doneTitle')}</p>
-        <p className="mt-2">{t('registro.doneBody')}</p>
+        <p className="mt-2">{t('registro.doneBody', { email: email.trim() })}</p>
         <p className="mt-2 text-success-700">{t('registro.doneHint')}</p>
       </div>
     );

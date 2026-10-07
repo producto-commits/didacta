@@ -22,18 +22,14 @@ export interface RegistroPayload {
   utm?: Record<string, string>;
 }
 
-export async function registro(payload: RegistroPayload): Promise<{ ok: true }> {
-  return apiFetch<{ ok: true }>('/api/v1/auth/registro', {
+export async function registro(
+  payload: RegistroPayload,
+): Promise<{ ok: true; fbEventId?: string }> {
+  return apiFetch<{ ok: true; fbEventId?: string }>('/api/v1/auth/registro', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
-
-/**
- * Página de Dropi que avisa a Meta del registro y devuelve a la persona a
- * Academy. El form redirige aquí (misma pestaña) tras un registro con éxito.
- */
-export const DROPI_BIENVENIDA_URL = 'https://dropi.co/ar/curso-dropshipping-bienvenida';
 
 /**
  * Indicativos para el selector de país del teléfono. Lista corta centrada en
