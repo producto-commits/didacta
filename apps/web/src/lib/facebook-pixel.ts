@@ -29,6 +29,7 @@ export function trackRegistration(
   pixelId: string | null | undefined,
   data: { email?: string; phone?: string; firstName?: string; lastName?: string },
   eventId?: string,
+  utms?: Record<string, string>,
 ): void {
   if (typeof window === 'undefined' || !window.fbq || !pixelId) return;
   window.fbq('init', pixelId, {
@@ -37,9 +38,15 @@ export function trackRegistration(
     ...(data.firstName ? { fn: data.firstName } : {}),
     ...(data.lastName ? { ln: data.lastName } : {}),
   });
-  // `eventID` compartido con la Conversions API (server-side) → Meta deduplica
-  // el mismo registro reportado por ambos lados.
-  window.fbq('track', 'CompleteRegistration', {}, eventId ? { eventID: eventId } : undefined);
+  // `custom_data` con las UTM de la campaña (si las hay) + `eventID` compartido
+  // con la Conversions API (server-side) → Meta deduplica el mismo registro.
+  const customData = utms && Object.keys(utms).length ? utms : {};
+  window.fbq(
+    'track',
+    'CompleteRegistration',
+    customData,
+    eventId ? { eventID: eventId } : undefined,
+  );
 }
 
 export {};

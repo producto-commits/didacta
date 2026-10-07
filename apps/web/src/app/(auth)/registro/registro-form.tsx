@@ -80,6 +80,7 @@ export function RegistroForm(): React.JSX.Element {
         tenant?.facebookPixelId,
         { email: mail, phone: `${dial}${digits}`, firstName: first, lastName: last },
         res.fbEventId,
+        utms,
       );
       // SIN auto-login ni rebote a Dropi: mostramos "revisa tu correo". El alumno
       // entra fijando su contraseña desde el enlace del email.

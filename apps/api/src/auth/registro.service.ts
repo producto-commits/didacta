@@ -14,7 +14,7 @@ import { ModuleRegistryService } from '../modules/module-registry.service';
 import { runAsTenant } from '../tenancy/tenant-context.storage';
 import type { ClientContext } from './client-context';
 import type { RegistroDto } from './dto';
-import { buildUtmQuery } from './utm';
+import { buildUtmQuery, pickUtm } from './utm';
 import { PasswordResetService } from './password-reset.service';
 import { PasswordService } from './password.service';
 
@@ -143,14 +143,20 @@ export class RegistroService {
 
     // Meta CompleteRegistration server-side (Conversions API), con el mismo
     // event_id que el pixel del navegador para deduplicar. Best-effort.
-    await this.sendMetaCapiRegistration(tenantId, fbEventId, webBaseUrl, {
-      email: dto.email,
-      phone,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      clientIp: ctx.ip,
-      userAgent: ctx.userAgent,
-    });
+    await this.sendMetaCapiRegistration(
+      tenantId,
+      fbEventId,
+      webBaseUrl,
+      {
+        email: dto.email,
+        phone,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        clientIp: ctx.ip,
+        userAgent: ctx.userAgent,
+      },
+      pickUtm(dto.utm),
+    );
 
     // NO auto-login: el alumno entra fijando su contraseña desde el enlace del
     // email (esa es la puerta de entrada). Auto-loguear con solo el correo sería
@@ -176,6 +182,7 @@ export class RegistroService {
       clientIp: string | null;
       userAgent: string | null;
     },
+    customData: Record<string, string>,
   ): Promise<void> {
     try {
       await runAsTenant(
@@ -195,6 +202,7 @@ export class RegistroService {
             eventName: 'CompleteRegistration',
             eventSourceUrl: `${webBaseUrl.replace(/\/$/, '')}/registro`,
             user,
+            customData,
           });
         },
         { traceLabel: 'fb-registro' },
@@ -214,9 +222,27 @@ export class RegistroService {
   ): Promise<{ userId: string; created: boolean }> {
     const existing = await this.prisma.user.findUnique({
       where: { tenantId_email: { tenantId, email } },
-      select: { id: true },
+      select: { id: true, status: true },
     });
-    if (existing) return { userId: existing.id, created: false };
+    if (existing) {
+      // El registro público es la puerta de captación: el alumno DEBE poder
+      // entrar. Si el correo ya existía como PENDING (p. ej. del módulo de
+      // inscripción con aprobación), lo activamos — si no, ni el auto-login tras
+      // fijar contraseña ni el signin funcionan (ambos exigen ACTIVE) y el
+      // usuario queda atascado con "credenciales inválidas". No tocamos SUSPENDED
+      // ni DEACTIVATED: esas son decisiones de un admin.
+      if (existing.status === 'PENDING') {
+        await this.prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            status: 'ACTIVE',
+            onboardingCompletedAt: new Date(),
+            perfilCompletadoAt: new Date(),
+          },
+        });
+      }
+      return { userId: existing.id, created: false };
+    }
 
     const passwordHash = await this.passwords.hash(randomBytes(16).toString('base64url'));
     const role = await this.prisma.role.findUnique({ where: { name: DEFAULT_ALUMNO_ROLE } });

@@ -28,6 +28,8 @@ export interface MetaCapiEventInput {
   eventName: string;
   eventSourceUrl?: string | null;
   user: MetaCapiUserData;
+  /** Datos extra del evento (p. ej. UTM de la campaña) → `custom_data` de Meta. */
+  customData?: Record<string, string>;
 }
 
 /** SHA-256 en hex de un valor ya normalizado. '' → undefined (no se envía). */
@@ -77,6 +79,8 @@ export class MetaCapiService {
     if (input.user.clientIp) userData.client_ip_address = input.user.clientIp;
     if (input.user.userAgent) userData.client_user_agent = input.user.userAgent;
 
+    const hasCustom = input.customData && Object.keys(input.customData).length > 0;
+
     const body = {
       data: [
         {
@@ -86,6 +90,7 @@ export class MetaCapiService {
           event_id: input.eventId,
           ...(input.eventSourceUrl ? { event_source_url: input.eventSourceUrl } : {}),
           user_data: userData,
+          ...(hasCustom ? { custom_data: input.customData } : {}),
         },
       ],
     };

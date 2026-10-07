@@ -70,5 +70,10 @@ export type ForgotPasswordDto = z.infer<typeof forgotPasswordSchema>;
 export const resetPasswordSchema = z.object({
   token: z.string().min(40).max(200),
   newPassword: z.string().min(12).max(128),
+  /** UTM de la campaña (si el link del email las traía) → evento "Ingreso". */
+  utm: z
+    .record(z.string().max(500))
+    .refine((o) => Object.keys(o).length <= 15, 'Demasiados parámetros')
+    .optional(),
 });
 export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;

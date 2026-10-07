@@ -11,6 +11,7 @@ import { TenantResolverService } from '../tenancy/tenant-resolver.service';
 import { PrismaTenantConfigService } from '../modules/prisma-tenant-config.service';
 import { AuthService } from './auth.service';
 import { extractClientContext } from './client-context';
+import { pickUtm } from './utm';
 import {
   forgotPasswordSchema,
   refreshSchema,
@@ -169,8 +170,14 @@ export class AuthController {
     const result = await this.passwordReset.reset(dto.token, dto.newPassword, ctx);
     // Auto-login: tras definir la contraseña dejamos la sesión abierta para que
     // el usuario NO tenga que iniciar sesión otra vez. Si necesita MFA, `session`
-    // es null y el cliente cae al login normal.
-    const session = await this.auth.issueSessionForUser(result.userId, result.tenantId, ctx);
+    // es null y el cliente cae al login normal. Las UTM (si venían en el link del
+    // email) se pasan para atribuir el evento "Ingreso".
+    const session = await this.auth.issueSessionForUser(
+      result.userId,
+      result.tenantId,
+      ctx,
+      pickUtm(dto.utm),
+    );
     if (session) {
       return { ok: true, ...session };
     }

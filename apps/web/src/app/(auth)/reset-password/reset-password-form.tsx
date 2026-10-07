@@ -65,9 +65,15 @@ export function ResetPasswordForm() {
     }
 
     try {
+      // UTM del link del email (si venían) → el backend atribuye el "Ingreso".
+      const utms = readUtms(window.location.search);
       const res = await apiFetch<ResetPasswordResponse>('/api/v1/auth/reset-password', {
         method: 'POST',
-        body: JSON.stringify({ token, newPassword }),
+        body: JSON.stringify({
+          token,
+          newPassword,
+          ...(Object.keys(utms).length ? { utm: utms } : {}),
+        }),
       });
       // Auto-login: si el backend devolvió sesión, entramos directo sin pedir
       // login otra vez. Si no (p. ej. MFA), caemos al login normal.

@@ -135,6 +135,7 @@ export class AuthService {
   private async fireFirstLoginEvent(
     user: { tenantId: string; email: string; name: string | null },
     ctx: ClientContext,
+    utm?: Record<string, string>,
   ): Promise<void> {
     try {
       await runAsTenant(
@@ -160,6 +161,7 @@ export class AuthService {
               clientIp: ctx.ip,
               userAgent: ctx.userAgent,
             },
+            ...(utm && Object.keys(utm).length ? { customData: utm } : {}),
           });
         },
         { traceLabel: 'fb-ingreso' },
@@ -563,6 +565,7 @@ export class AuthService {
     userId: string,
     tenantId: string,
     ctx: ClientContext = NO_CLIENT_CONTEXT,
+    utm?: Record<string, string>,
   ): Promise<AuthResult | null> {
     return runAsTenant(
       tenantId,
@@ -587,7 +590,11 @@ export class AuthService {
           data: { lastLoginAt: new Date() },
         });
         if (isFirstLogin) {
-          await this.fireFirstLoginEvent({ tenantId, email: user.email, name: user.name }, ctx);
+          await this.fireFirstLoginEvent(
+            { tenantId, email: user.email, name: user.name },
+            ctx,
+            utm,
+          );
         }
 
         const tokens = await this.sessions.issue(

@@ -41,3 +41,17 @@ export function appendQuery(url: string, query: string): string {
   if (!query) return url;
   return url + (url.includes('?') ? '&' : '?') + query;
 }
+
+/**
+ * Objeto con SOLO las claves conocidas y no vacías de `utm`, para mandarlas como
+ * `custom_data` en los eventos de Meta. `{}` si no hay ninguna.
+ */
+export function pickUtm(utm: Record<string, string> | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!utm) return out;
+  for (const key of UTM_KEYS) {
+    const value = utm[key];
+    if (typeof value === 'string' && value.trim()) out[key] = value.trim();
+  }
+  return out;
+}
