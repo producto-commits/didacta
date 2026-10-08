@@ -146,8 +146,8 @@ export async function uploadCommunityFile(file: File): Promise<{ url: string; na
       'Tipo de archivo no admitido. Usa PDF, Word, Excel, PowerPoint, TXT, CSV o ZIP.',
     );
   }
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error('El archivo supera el límite de 10 MB.');
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error('El archivo supera el límite de 20 MB.');
   }
   const base64 = await readAsBase64(file);
   const url = await callUploadEndpoint(base64, file.name, contentType);

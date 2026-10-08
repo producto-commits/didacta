@@ -57,8 +57,8 @@ const UPLOAD_MIME_TYPES = [
 
 const ALLOWED_MIME = new Set<string>(UPLOAD_MIME_TYPES);
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MiB
-const MAX_BASE64_BYTES = Math.ceil(MAX_BYTES * 1.4); // ~14 MiB en base64
+const MAX_BYTES = 20 * 1024 * 1024; // 20 MiB
+const MAX_BASE64_BYTES = Math.ceil(MAX_BYTES * 1.4); // ~28 MiB en base64
 
 /**
  * Ajustes de optimización de imágenes. Las imágenes raster se optimizan por
