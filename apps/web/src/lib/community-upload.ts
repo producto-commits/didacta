@@ -149,7 +149,26 @@ export async function uploadCommunityFile(file: File): Promise<{ url: string; na
   if (file.size > 20 * 1024 * 1024) {
     throw new Error('El archivo supera el límite de 20 MB.');
   }
-  const base64 = await readAsBase64(file);
-  const url = await callUploadEndpoint(base64, file.name, contentType);
-  return { url, name: file.name };
+  // Subida CRUDA (bytes del archivo, no base64): enviarlo como base64 dentro de un
+  // JSON infla ~33% y los bodies JSON grandes (>~10 MB) se cuelgan en el proxy y
+  // devuelven 500. En crudo, 20 MB viajan como 20 MB y pasan sin problema. El tipo
+  // real y el nombre van en headers (el body va como application/octet-stream).
+  const token = authStorage.getAccessToken();
+  if (!token) throw new Error('No autenticado');
+  const res = await fetch('/api/v1/storage/upload-raw', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'X-Upload-Filename': encodeURIComponent(file.name),
+      'X-Upload-Content-Type': contentType,
+      Authorization: `Bearer ${token}`,
+    },
+    body: file,
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message ?? `Error ${res.status} al subir el archivo.`);
+  }
+  const result = (await res.json()) as { url: string };
+  return { url: result.url, name: file.name };
 }

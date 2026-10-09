@@ -8,13 +8,16 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Headers,
   HttpCode,
   NotFoundException,
   Post,
+  Req,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CurrentUser } from '../auth/decorators';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -194,6 +197,72 @@ export class StorageController {
       size: stored.size,
       previousSize: stored.previousSize,
       optimized: stored.optimized,
+    };
+  }
+
+  /**
+   * Subida CRUDA de documentos (PDF/Word/Excel/PPT/ZIP…): el body son los bytes
+   * del archivo (content-type `application/octet-stream`), SIN base64. Evita el
+   * cuelgue del proxy con JSON grandes y soporta hasta 20 MB. El tipo real y el
+   * nombre viajan en headers. No pasa por el optimizador de imágenes (documento
+   * = se guarda intacto).
+   */
+  @Post('upload-raw')
+  @ApiOperation({
+    summary: 'Sube un documento (hasta 20 MB) como bytes crudos y devuelve la URL.',
+  })
+  async uploadRaw(
+    @CurrentUser() user: SessionClaims | undefined,
+    @Req() req: FastifyRequest,
+    @Headers('x-upload-filename') rawFilename?: string,
+    @Headers('x-upload-content-type') rawContentType?: string,
+  ) {
+    if (!user) throw new UnauthorizedException();
+    if (!user.roles.some((r) => UPLOAD_ROLES.has(r))) {
+      throw new ForbiddenException({
+        message: 'Necesitas estar autenticado con un rol válido para subir archivos.',
+        code: 'STORAGE_UPLOAD_ROLE_REQUIRED',
+      });
+    }
+
+    const contentType = (rawContentType ?? '').trim();
+    if (!ALLOWED_MIME.has(contentType)) {
+      throw new ForbiddenException({
+        message: 'Tipo MIME no permitido.',
+        code: 'STORAGE_MIME_NOT_ALLOWED',
+      });
+    }
+
+    const buffer = req.body;
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0 || buffer.length > MAX_BYTES) {
+      throw new BadRequestException({
+        message: `El archivo debe pesar entre 1 byte y ${MAX_BYTES} bytes.`,
+        code: 'STORAGE_FILE_SIZE_OUT_OF_RANGE',
+        detail: String(MAX_BYTES),
+      });
+    }
+
+    let filename = rawFilename ?? '';
+    try {
+      filename = decodeURIComponent(filename);
+    } catch {
+      /* nombre con %-encoding inválido: usamos el crudo tal cual */
+    }
+    const safeName = filename
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80);
+    const requestedKey = `tenants/${user.tenantId}/uploads/${Date.now()}-${safeName || 'file'}`;
+
+    const storage = await this.factory.getStorageForTenant(user.tenantId);
+    await storage.upload(requestedKey, buffer, contentType);
+    return {
+      key: requestedKey,
+      url: storageAssetPath(requestedKey),
+      contentType,
+      size: buffer.length,
+      optimized: false,
     };
   }
 

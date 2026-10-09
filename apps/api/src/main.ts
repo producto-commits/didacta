@@ -114,6 +114,19 @@ async function bootstrap(): Promise<void> {
     },
   );
 
+  // Subida de archivos CRUDA (`POST /storage/upload-raw`): el cuerpo son los bytes
+  // del fichero tal cual (sin base64). Es la vía para documentos: enviarlos como
+  // base64 dentro de un JSON infla ~33% y, por un límite del proxy de Next, los
+  // bodies JSON grandes (>~10 MB) se cuelgan 32 s y devuelven 500. En crudo, 20 MB
+  // viajan como 20 MB y pasan sin problema. Límite 22 MiB (20 MB + headroom).
+  app.useBodyParser(
+    'application/octet-stream',
+    { bodyLimit: 22 * 1024 * 1024 },
+    (_req, body: Buffer, done: (err: Error | null, result?: unknown) => void) => {
+      done(null, body);
+    },
+  );
+
   app.useBodyParser(
     'application/x-www-form-urlencoded',
     {},
