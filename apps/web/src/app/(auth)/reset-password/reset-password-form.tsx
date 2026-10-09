@@ -82,13 +82,9 @@ export function ResetPasswordForm() {
         authStorage.saveSession({ user: res.user, mfaRequired: res.mfaRequired ?? false }, true);
         invalidateCommunitySpacesCache();
         requestThemeRefresh();
-        // Destino: `next` del link (p. ej. el curso del registro) si es una ruta
-        // interna segura; si no, onboarding (si falta) o la home. Propagamos las
-        // UTM para no perder la atribución en el login/aterrizaje.
-        const rawNext = searchParams?.get('next') ?? '';
-        const safeNext = /^\/(?!\/)/.test(rawNext) ? rawNext : '';
-        const fallback = res.user.onboardingCompletedAt === null ? '/onboarding' : '/';
-        const dest = safeNext || fallback;
+        // Si falta el onboarding, al onboarding (el shell igual lo gatea); si no, a
+        // la home. Propagamos las UTM para no perder la atribución en el aterrizaje.
+        const dest = res.user.onboardingCompletedAt === null ? '/onboarding' : '/';
         router.push(appendUtms(dest, readUtms(window.location.search)));
         return;
       }

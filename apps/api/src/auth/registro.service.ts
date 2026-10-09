@@ -126,13 +126,9 @@ export class RegistroService {
 
     // Email con enlace para fijar contraseña (copy de invitación/bienvenida). Se
     // envía SIEMPRE (nuevo o existente) — es la puerta de entrada para volver a
-    // loguearse más adelante. Se auto-escopa al tenant por dentro. Al link le
-    // añadimos: `next` (para que, tras fijar la contraseña, el alumno caiga
-    // DIRECTO en el curso) y las UTM de la URL de registro (atribución).
-    const utmQuery = buildUtmQuery(dto.utm);
-    const linkQuery = `next=${encodeURIComponent(`/cursos/${REGISTRO_COURSE_SLUG}`)}${
-      utmQuery ? `&${utmQuery}` : ''
-    }`;
+    // loguearse más adelante. Se auto-escopa al tenant por dentro. Le añadimos las
+    // UTM de la URL de registro (atribución). NO forzamos `next` al curso: tras
+    // fijar la contraseña el alumno debe pasar por el onboarding/encuesta.
     await this.passwordReset.requestAndSendEmail(
       { email: dto.email, resolvedTenantId: tenantId },
       webBaseUrl,
@@ -141,7 +137,7 @@ export class RegistroService {
         allowPending: true,
         ttlMinutes: SET_PASSWORD_TTL_MINUTES,
         asInvitation: true,
-        linkQuery,
+        linkQuery: buildUtmQuery(dto.utm),
       },
     );
 
@@ -226,29 +222,19 @@ export class RegistroService {
   ): Promise<{ userId: string; created: boolean }> {
     const existing = await this.prisma.user.findUnique({
       where: { tenantId_email: { tenantId, email } },
-      select: {
-        id: true,
-        status: true,
-        onboardingCompletedAt: true,
-        perfilCompletadoAt: true,
-      },
+      select: { id: true, status: true },
     });
     if (existing) {
-      // El registro público es la puerta de captación: el alumno DEBE entrar
-      // DIRECTO al curso. Por eso, sobre un correo ya existente:
-      //  - Si está PENDING (p. ej. del módulo de inscripción con aprobación) lo
-      //    ACTIVAMOS — si no, ni el auto-login tras fijar contraseña ni el signin
-      //    funcionan (ambos exigen ACTIVE) y queda con "credenciales inválidas".
-      //    No tocamos SUSPENDED ni DEACTIVATED: son decisiones de un admin.
-      //  - Pre-completamos onboarding y perfilamiento (si estaban pendientes)
-      //    para que el shell NO lo desvíe a esos cuestionarios y caiga al curso.
-      const now = new Date();
-      const data: Record<string, unknown> = {};
-      if (existing.status === 'PENDING') data.status = 'ACTIVE';
-      if (existing.onboardingCompletedAt === null) data.onboardingCompletedAt = now;
-      if (existing.perfilCompletadoAt === null) data.perfilCompletadoAt = now;
-      if (Object.keys(data).length > 0) {
-        await this.prisma.user.update({ where: { id: existing.id }, data });
+      // Si el correo ya existía como PENDING (p. ej. del módulo de inscripción con
+      // aprobación) lo ACTIVAMOS — si no, ni el auto-login tras fijar contraseña ni
+      // el signin funcionan (ambos exigen ACTIVE) y queda con "credenciales
+      // inválidas". No tocamos SUSPENDED ni DEACTIVATED: son decisiones de un admin.
+      // NO pre-completamos onboarding/perfilamiento: debe pasar por la encuesta.
+      if (existing.status === 'PENDING') {
+        await this.prisma.user.update({
+          where: { id: existing.id },
+          data: { status: 'ACTIVE' },
+        });
       }
       return { userId: existing.id, created: false };
     }
@@ -269,12 +255,8 @@ export class RegistroService {
             // Origen = link público → habilita la misión de bienvenida "Regístrate
             // en Dropi" (los de inscribe/GHL no la ven).
             registrationSource: 'self_registro',
-            // Captación sin fricción: el alumno que llega por el link entra
-            // DIRECTO al curso tras el registro (ver flujo de redirección a la
-            // página de bienvenida de Dropi). Pre-completamos los gates del shell
-            // (onboarding de foto/nombre y perfilamiento) para no desviarlo.
-            onboardingCompletedAt: new Date(),
-            perfilCompletadoAt: new Date(),
+            // NOTA: NO pre-completamos onboarding/perfilamiento — el alumno debe
+            // pasar por el onboarding/encuesta antes de llegar al curso.
           },
         });
         if (role) await tx.userRole.create({ data: { userId: created.id, roleId: role.id } });
