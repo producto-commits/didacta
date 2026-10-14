@@ -1,0 +1,57 @@
+name: Deploy a producción
+
+# Manual y con aprobación: promueve a prod una imagen YA construida y verificada
+# en staging. No reconstruye. El gate real es el Environment `production` (abajo),
+# que exige la aprobación de un reviewer (el core) antes de ejecutar el deploy.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag de imagen verificado en staging (ej. ci-<sha>)'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: dropi-academy
+  REGION: us-central1
+  SERVICE: dropi-academy
+  IMAGE_REPO: us-central1-docker.pkg.dev/dropi-academy/didacta/didacta
+  # Input del usuario -> a env (no se interpola en el shell) para evitar inyección.
+  IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production # <- gate: requiere aprobación del reviewer del Environment
+    steps:
+      - name: Validar el tag (solo [A-Za-z0-9._-])
+        run: |
+          if ! printf '%s' "$IMAGE_TAG" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+            echo "image_tag inválido: $IMAGE_TAG" >&2; exit 1
+          fi
+
+      - name: Auth a GCP (WIF, sin llave)
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verificar que la imagen existe en el registry
+        run: gcloud artifacts docker images describe "${IMAGE_REPO}:${IMAGE_TAG}" >/dev/null
+
+      - name: Deploy a producción
+        run: |
+          gcloud run services update "$SERVICE" \
+            --project="$PROJECT_ID" --region="$REGION" \
+            --image="${IMAGE_REPO}:${IMAGE_TAG}"
+
+      - name: Resumen
+        run: |
+          echo "### 🚀 Producción desplegada" >> "$GITHUB_STEP_SUMMARY"
+          echo "Imagen: \`${IMAGE_REPO}:${IMAGE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"

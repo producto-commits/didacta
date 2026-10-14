@@ -1,0 +1,56 @@
+name: Deploy a staging
+
+# Automático: cualquier push a main construye la imagen y la despliega a staging.
+# Prod es OTRO workflow (deploy-prod.yml), con aprobación manual.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # necesario para Workload Identity Federation (auth sin llave)
+
+env:
+  PROJECT_ID: dropi-academy
+  REGION: us-central1
+  SERVICE: dropi-academy-staging
+  IMAGE_REPO: us-central1-docker.pkg.dev/dropi-academy/didacta/didacta
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth a GCP (WIF, sin llave)
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Docker auth a Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build + push imagen
+        run: |
+          IMAGE="${IMAGE_REPO}:ci-${GITHUB_SHA::12}"
+          DOCKER_BUILDKIT=1 docker build --platform linux/amd64 -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy a staging
+        run: |
+          gcloud run services update "$SERVICE" \
+            --project="$PROJECT_ID" --region="$REGION" --image="$IMAGE"
+
+      - name: Resumen
+        run: |
+          echo "### ✅ Staging desplegado" >> "$GITHUB_STEP_SUMMARY"
+          echo "Imagen: \`${IMAGE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Para subir ESTA imagen a prod: Actions → **Deploy a producción** →" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run workflow → image_tag = \`ci-${GITHUB_SHA::12}\`" >> "$GITHUB_STEP_SUMMARY"
